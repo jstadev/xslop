@@ -1,0 +1,45 @@
+/* xslop: collapse the content of a cell, keep X's nodes in place. */
+[data-xslop-cell] > :not(.xslop-bar),
+[data-xslop-cell="removed"] > .xslop-bar,
+[data-xslop-article] {
+  display: none !important;
+}
+
+/* The button sits in X's action row as a fixed-size item, so X's own icons keep their place. */
+.xslop-host {
+  flex: 0 0 auto;
+  margin-inline-start: var(--xslop-gap);
+}
+
+/* X colours every text node itself and sets only the background on body, so nothing xslop adds can
+   inherit a usable colour. The body background names the theme: Default, Dim or Lights out. */
+:root {
+  --xslop-text: rgb(15, 20, 25);
+  --xslop-secondary: rgb(83, 100, 113);
+  /* In rem, so the button follows X's font size setting as X's own icons do. */
+  --xslop-icon-size: 1.25rem;
+  /* Keeps the button's hit area off X's neighbouring icon and its hover circle. */
+  --xslop-gap: 16px;
+}
+body[style*="rgb(21, 32, 43)"],
+body[style*="#15202b" i] {
+  --xslop-text: rgb(247, 249, 249);
+  --xslop-secondary: rgb(139, 152, 165);
+}
+body[style*="rgb(0, 0, 0)"],
+body[style*="#000"] {
+  --xslop-text: rgb(231, 233, 234);
+  --xslop-secondary: rgb(113, 118, 123);
+}
+
+/* The focal post has the larger action row. */
+article[tabindex="-1"] .xslop-host {
+  --xslop-icon-size: 1.5rem;
+}
+
+/* A 44 px touch target fits exactly: this gap + the icon + X's 16 px row padding. */
+@media (max-width: 700px) {
+  :root {
+    --xslop-gap: calc(28px - var(--xslop-icon-size));
+  }
+}

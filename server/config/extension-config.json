@@ -1,0 +1,36 @@
+{
+  "v": 1,
+  "minVersion": "1.0.0",
+  "selectors": {
+    "article": "article[data-testid=\"tweet\"]",
+    "cell": "[data-testid=\"cellInnerDiv\"]",
+    "userName": "[data-testid=\"User-Name\"]",
+    "userLink": "a[href^=\"/\"]",
+    "text": "[data-testid=\"tweetText\"]",
+    "time": "time[datetime]",
+    "statusLink": "a[href*=\"/status/\"]",
+    "actionBar": "[role=\"group\"]",
+    "ownProfile": "[data-testid=\"AppTabBar_Profile_Link\"], [data-testid=\"DashButton_ProfileIcon_Link\"] [data-testid^=\"UserAvatar-Container-\"]",
+    "verified": "[data-testid=\"icon-verified\"]",
+    "protected": "[data-testid=\"icon-lock\"], [aria-label=\"Protected account\"]",
+    "promoted": "[data-testid=\"placementTracking\"]",
+    "quote": "div[role=\"link\"]",
+    "replyingTo": "a[href^=\"/\"]",
+    "media": "[data-testid=\"tweetPhoto\"], [data-testid=\"videoPlayer\"], [data-testid=\"videoComponent\"], [data-testid=\"card.wrapper\"]",
+    "caret": "[data-testid=\"caret\"]",
+    "menu": "[role=\"menu\"]",
+    "menuItem": "[role=\"menuitem\"]"
+  },
+  "observe": {
+    "enabled": true,
+    "batchMax": 100,
+    "flushSec": 30
+  },
+  "mute": {
+    "enabled": true,
+    "maxPerDay": 40,
+    "minIntervalSec": 90,
+    "jitter": 0.3,
+    "webBearer": "AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA"
+  }
+}

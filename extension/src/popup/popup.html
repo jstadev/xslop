@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>xslop</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="ui.css">
+<script type="module" src="popup.js"></script>
+</head>
+<body class="popup">
+<header class="head">
+  <h1><img src="wordmark.svg" alt="xslop" width="81" height="28"></h1>
+  <p id="headline" class="pill" role="status"></p>
+</header>
+
+<dl class="glance" aria-label="Today in numbers">
+  <div><dt>Hidden today</dt><dd id="stat-hidden">0</dd></div>
+  <div><dt>On the shared list</dt><dd id="stat-list">0</dd></div>
+  <div><dt>You marked</dt><dd id="stat-mine">0</dd></div>
+</dl>
+
+<div id="access" class="notice" hidden>
+  <p>xslop needs access to x.com and to its own server to work. Your browser asks you once.</p>
+  <button id="access-grant" class="btn primary" type="button">Allow access</button>
+  <p id="access-help" class="hint" hidden>Your browser did not ask. Open its extension settings and allow xslop on x.com.</p>
+</div>
+<ul id="notices" class="notices" aria-live="polite"></ul>
+
+<section class="block" aria-labelledby="h-accounts">
+  <h2 id="h-accounts">Your accounts <span id="count" class="muted"></span></h2>
+  <p id="standing" class="hint" hidden></p>
+  <input id="search" class="input" type="search" placeholder="Search @handle" aria-label="Search your accounts" autocomplete="off" spellcheck="false">
+  <ul id="votes" class="votes" aria-labelledby="h-accounts"></ul>
+  <p id="more" class="hint" hidden></p>
+  <p id="empty" class="hint" hidden></p>
+  <div id="toast" class="toast" role="status" hidden>
+    <span id="toast-msg"></span>
+    <button id="toast-undo" class="link" type="button">Undo</button>
+  </div>
+</section>
+
+<section class="block" aria-labelledby="h-hide">
+  <h2 id="h-hide">What xslop hides</h2>
+  <div class="seg" role="radiogroup" aria-labelledby="h-hide">
+    <label><input type="radio" name="strictness" value="off"><span>Off</span></label>
+    <label><input type="radio" name="strictness" value="balanced"><span>Balanced</span></label>
+    <label><input type="radio" name="strictness" value="strict"><span>Strict</span></label>
+  </div>
+  <p id="strict-hint" class="hint"></p>
+  <div class="seg" role="radiogroup" aria-label="How a hidden post looks">
+    <label><input type="radio" name="display" value="collapse"><span>One line</span></label>
+    <label><input type="radio" name="display" value="remove"><span>Remove</span></label>
+  </div>
+  <p id="display-hint" class="hint"></p>
+</section>
+
+<section class="block" aria-labelledby="h-mute">
+  <h2 id="h-mute">Mutes on your X account</h2>
+  <label class="switch">
+    <input type="checkbox" id="mute-mark" role="switch">
+    <span class="track" aria-hidden="true"></span>
+    <span class="label"><strong>Mute when you mark</strong>
+      <span class="hint">Your click hides the account here and mutes it on your X account at once, so the X app on your phone hides it too.</span></span>
+  </label>
+  <label class="switch">
+    <input type="checkbox" id="mute" role="switch">
+    <span class="track" aria-hidden="true"></span>
+    <span class="label"><strong>Mute the shared list too</strong>
+      <span id="mute-hint" class="hint"></span></span>
+  </label>
+  <p id="mute-state" class="hint state" aria-live="polite"></p>
+  <button id="undo-mutes" class="btn" type="button" hidden>Undo all xslop mutes</button>
+</section>
+
+<section class="block" aria-labelledby="h-share">
+  <h2 id="h-share" class="sr-only">Anonymous signals</h2>
+  <label class="switch">
+    <input type="checkbox" id="share" role="switch">
+    <span class="track" aria-hidden="true"></span>
+    <span class="label"><strong>Share anonymous signals</strong>
+      <span class="hint">The account and the post ids of each reply on post pages that you open. Nothing else.</span></span>
+  </label>
+</section>
+
+<footer class="foot">
+  <a href="onboarding.html" target="_blank">How xslop works</a>
+  <a href="https://x-slop.com/check" target="_blank" rel="noopener">Appeal a listing</a>
+</footer>
+</body>
+</html>

@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <!--include:head-->
+    <title>The rules of the xslop list</title>
+    <meta name="description" content="How an account gets on the xslop list: voters with standing, posts that the server checks, and a person who decides the rest and reads every appeal." />
+    <link rel="canonical" href="https://x-slop.com/rules" />
+    <meta property="og:title" content="The rules of the xslop list" />
+    <meta property="og:description" content="How an account gets on the xslop list: voters with standing, posts that the server checks, and a person who decides the rest and reads every appeal." />
+    <meta property="og:url" content="https://x-slop.com/rules" />
+    <link rel="preload" href="../../brand/fonts/mona-sans-latin-wdth-normal.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="../src/styles/site.css" />
+    <script type="module" src="../src/pages/rules.ts"></script>
+  </head>
+  <body>
+    <!--include:sprite-->
+
+    <a class="skip" href="#main">Skip to content</a>
+
+    <header class="strip">
+      <a class="brand" href="/" aria-label="xslop home">
+        <svg class="brand-logo" viewBox="0 0 93 32" role="img" aria-label="xslop"><use class="logo-mark" href="#xs-mark" width="32" height="32" /><use href="#xs-word" x="30.5" width="60" height="32" /></svg>
+      </a>
+    </header>
+
+    <main id="main">
+      <section class="xrow" id="rules" aria-labelledby="rules-title">
+        <span class="xrow-avatar" aria-hidden="true"><svg viewBox="0 0 32 32"><use href="#xs-mark" /></svg></span>
+        <div class="xrow-main">
+          <p class="xrow-who"><span class="post-name" translate="no">xslop</span></p>
+          <h1 id="rules-title" class="h2">The rules, as the server applies them</h1>
+          <div class="rules-body" id="criteria-body">
+            <dl class="rules">
+              <div>
+                <dt class="h3">Standing and checks decide</dt>
+                <dd>A mark from a new install hides and mutes the account for you at once. It counts for the shared list after a person approves it, or after your install earns standing with marks that held up. An automatic listing also needs posts that the server checked, and one side alone cannot confirm an account.</dd>
+              </div>
+              <div>
+                <dt class="h3">Reply timing, checked by the server</dt>
+                <dd>With signal sharing on, the extension sends the handle of a reply and two post ids. The server checks the posts on X and reads the reply time from the ids. Reply timing never changes the status of an account.</dd>
+              </div>
+              <div>
+                <dt class="h3">Fresh and crowded installs count less</dt>
+                <dd>A vote from a new install counts less. Many installs on one network count as fewer voters.</dd>
+              </div>
+              <div>
+                <dt class="h3">A person reads every appeal</dt>
+                <dd>Anyone on the list can appeal. An admin checks each appeal by hand, and an accepted appeal clears the account.</dd>
+              </div>
+            </dl>
+          </div>
+          <p class="seed-note">
+            The list started from the public X list "ai slop posters" by
+            <a href="https://x.com/dillon_mulroy" rel="noopener noreferrer">@dillon_mulroy</a>, 793 accounts at import.
+            A second import on 13 November 2026 took the accounts of the public list
+            <a href="https://clankwall.vogel.dev/" rel="noopener noreferrer">Clankwall</a>
+            that have at least 2 flagged replies, where flagged replies are at least half of the sampled replies: 1,430 accounts, 1,046 of them new.
+            Those accounts start as confirmed and can appeal like any other.
+          </p>
+        </div>
+      </section>
+    </main>
+
+    <!--include:footer-->
+  </body>
+</html>

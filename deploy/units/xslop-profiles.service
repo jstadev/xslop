@@ -1,0 +1,45 @@
+[Unit]
+Description=xslop X facts job: identity, evidence, reply timing, renames ({{CHANNEL}})
+After=network-online.target tailscaled.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User={{USER}}
+Group={{USER}}
+WorkingDirectory={{DIR}}
+{{ENV}}
+Environment=NODE_ENV=production
+ExecStart={{NODE}}/node server/dist/jobs/profiles.js
+TimeoutStartSec=600
+Nice=10
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+CapabilityBoundingSet=
+PrivateDevices=yes
+ProtectKernelLogs=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RemoveIPC=yes
+KeyringMode=private
+UMask=0077
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources
+ReadWritePaths={{DATA}}
+# systemd reads the EnvironmentFile before the sandbox starts, so the process needs no access to the env files of either channel.
+InaccessiblePaths=/etc/{{KEY}}
+# A Node process here runs 11 threads; the cap keeps a compromised process from using up the tasks of the host.
+TasksMax=64
+MemoryMax=256M

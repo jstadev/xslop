@@ -1,0 +1,24 @@
+name: X changed its page
+description: The xslop button is missing or in the wrong place, or hiding stopped, on a page of x.com.
+labels: [x-markup]
+body:
+  - type: input
+    id: page
+    attributes:
+      label: Which page of x.com
+      description: Home, a post, a profile, search, lists, bookmarks, notifications, or another one.
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What you see
+      description: Since when, and what the button or the hidden reply does.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Extension version and browser
+    validations:
+      required: true

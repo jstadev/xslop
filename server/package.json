@@ -1,0 +1,35 @@
+{
+  "name": "xslop-server",
+  "private": true,
+  "version": "1.0.0",
+  "description": "xslop API, scoring job and static server.",
+  "license": "MIT",
+  "author": "xslop contributors",
+  "homepage": "https://x-slop.com",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jstadev/xslop.git",
+    "directory": "server"
+  },
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json",
+    "test": "npm run typecheck && vitest run",
+    "start": "node dist/main.js"
+  },
+  "dependencies": {
+    "fastify": "5.12.8",
+    "pg": "8.23.1"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.5.15",
+    "@types/node": "24.19.2",
+    "@types/pg": "8.23.1",
+    "typescript": "7.0.2",
+    "vitest": "5.1.0"
+  }
+}

@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <!--include:head-->
+    <title>Privacy</title>
+    <meta name="description" content="What the xslop extension sends to the xslop server, and what it never sends." />
+    <link rel="canonical" href="https://x-slop.com/privacy" />
+    <meta property="og:title" content="Privacy" />
+    <meta property="og:description" content="What the xslop extension sends to the xslop server, and what it never sends." />
+    <meta property="og:url" content="https://x-slop.com/privacy" />
+    <link rel="preload" href="../../brand/fonts/mona-sans-latin-wdth-normal.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="../src/styles/site.css" />
+  </head>
+  <body>
+    <!--include:sprite-->
+
+    <a class="skip" href="#main">Skip to content</a>
+
+    <header class="strip">
+      <a class="brand" href="/" aria-label="xslop home">
+        <svg class="brand-logo" viewBox="0 0 93 32" role="img" aria-label="xslop"><use class="logo-mark" href="#xs-mark" width="32" height="32" /><use href="#xs-word" x="30.5" width="60" height="32" /></svg>
+      </a>
+    </header>
+
+    <main id="main">
+      <section class="xrow" id="privacy" aria-labelledby="privacy-title">
+        <span class="xrow-avatar" aria-hidden="true"><svg viewBox="0 0 32 32"><use href="#xs-mark" /></svg></span>
+        <div class="xrow-main">
+          <p class="xrow-who"><span class="post-name" translate="no">xslop</span></p>
+          <h1 id="privacy-title" class="h2">What <span translate="no">xslop</span> sends, and what it never sends</h1>
+          <h3 class="h3 privacy-sub">Sent to the xslop server</h3>
+          <ul class="plain-list sent">
+            <li>Your votes: the account's handle, slop or not slop, the post's id, the id of the post it answers, whether it is a reply or a post, and the time of the post. Never the text of the post.</li>
+            <li>A random install id, a public key and the version of the extension. Your browser makes the key pair and signs every vote with it. The private key never leaves your browser.</li>
+            <li>Only if you turn on signal sharing, for each reply on a post page that you open: the handle of the account that replied, the id of the reply and the id of the post it answers. The server does not store which install sent a signal.</li>
+          </ul>
+          <h3 class="h3 privacy-sub">Never sent</h3>
+          <ul class="plain-list never">
+            <li>Your X password, cookies or session. Mute sync and the instant mute run inside your own x.com tab and talk only to x.com.</li>
+            <li>Your own X handle and the accounts you follow.</li>
+            <li>Pages outside x.com. The extension runs on x.com only.</li>
+            <li>A stored copy of your IP address. Every web request shows it to the server, but the server keeps only a salted hash of your network prefix, to spot many installs on one network.</li>
+            <li>The text of a post or a reply, in a vote or in a signal.</li>
+          </ul>
+          <p class="privacy-page-note">This page loads nothing from other servers: no analytics, no ads, no trackers.</p>
+        </div>
+      </section>
+    </main>
+
+    <!--include:footer-->
+  </body>
+</html>

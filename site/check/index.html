@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <!--include:head-->
+    <title>Check a handle or appeal</title>
+    <meta name="description" content="Type any X handle to see where it stands on the xslop list. If your own account is on the list, you can appeal." />
+    <link rel="canonical" href="https://x-slop.com/check" />
+    <meta property="og:title" content="Check a handle or appeal" />
+    <meta property="og:description" content="Type any X handle to see where it stands on the xslop list. If your own account is on the list, you can appeal." />
+    <meta property="og:url" content="https://x-slop.com/check" />
+    <link rel="preload" href="../../brand/fonts/mona-sans-latin-wdth-normal.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="../src/styles/site.css" />
+    <script type="module" src="../src/pages/check.ts"></script>
+  </head>
+  <body>
+    <!--include:sprite-->
+
+    <a class="skip" href="#main">Skip to content</a>
+
+    <header class="strip">
+      <a class="brand" href="/" aria-label="xslop home">
+        <svg class="brand-logo" viewBox="0 0 93 32" role="img" aria-label="xslop"><use class="logo-mark" href="#xs-mark" width="32" height="32" /><use href="#xs-word" x="30.5" width="60" height="32" /></svg>
+      </a>
+    </header>
+
+    <main id="main">
+      <section class="xrow" id="appeal" aria-labelledby="appeal-title">
+        <span class="xrow-avatar" aria-hidden="true"><svg viewBox="0 0 32 32"><use href="#xs-mark" /></svg></span>
+        <div class="xrow-main">
+          <p class="xrow-who"><span class="post-name" translate="no">xslop</span></p>
+          <h1 id="appeal-title" class="h2">Check a handle or appeal</h1>
+          <p class="xrow-text">Type any X handle to see where it stands:</p>
+          <ul class="step-points">
+            <li>Its status</li>
+            <li>The votes</li>
+            <li>Other insights</li>
+          </ul>
+          <p class="xrow-text">If your own account is on the list, you can appeal from here.</p>
+          <h2 class="h3 appeal-head" id="appeal-path-title">How to appeal</h2>
+          <ol class="appeal-path" role="list" aria-labelledby="appeal-path-title">
+            <li>Make sure your DMs are open.</li>
+            <li>Your account will be checked.</li>
+            <li>An admin will send you a DM on X.</li>
+          </ol>
+          <noscript><p class="install-note">The check needs JavaScript, because it reads the status of the handle from the server. Turn it on to check a handle or send an appeal.</p></noscript>
+          <div class="appeal-work">
+            <form class="lookup" id="lookup-form" novalidate>
+              <label class="field-label" for="lookup-handle">X handle <span class="field-note">(we will never ask for your password)</span></label>
+              <div class="lookup-bar">
+                <span class="lookup-at" aria-hidden="true">@</span>
+                <input id="lookup-handle" name="handle" type="text" inputmode="text" autocomplete="off" autocapitalize="none" enterkeyhint="search" spellcheck="false" maxlength="40" placeholder="handle…" aria-describedby="lookup-error" />
+                <button class="btn btn-primary" type="submit">Check</button>
+              </div>
+              <p class="field-error" id="lookup-error" aria-live="polite"></p>
+            </form>
+            <div class="account" id="account-result" aria-live="polite" hidden></div>
+            <form class="appeal-form" id="appeal-form" novalidate hidden>
+              <h3 class="h3" id="appeal-form-title">Appeal</h3>
+              <label class="field-label" for="appeal-message">Why this account is a person, not slop</label>
+              <textarea id="appeal-message" name="message" rows="5" minlength="20" maxlength="2000" required aria-describedby="appeal-message-help appeal-message-error"></textarea>
+              <p class="field-help" id="appeal-message-help"><span id="appeal-count">0</span> of 2,000 characters. At least 20.</p>
+              <p class="field-error" id="appeal-message-error" aria-live="polite"></p>
+              <label class="field-label" for="appeal-email">Email for the decision (optional)</label>
+              <input id="appeal-email" name="email" type="email" inputmode="email" autocomplete="email" enterkeyhint="send" spellcheck="false" maxlength="254" placeholder="you@example.com" aria-describedby="appeal-email-error" />
+              <p class="field-error" id="appeal-email-error" aria-live="polite"></p>
+              <div class="appeal-submit">
+                <button class="btn btn-primary" type="submit" id="appeal-submit">Send appeal</button>
+                <p class="appeal-progress" id="appeal-progress" aria-live="polite"></p>
+              </div>
+            </form>
+            <div class="appeal-done" id="appeal-done" hidden></div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!--include:footer-->
+  </body>
+</html>

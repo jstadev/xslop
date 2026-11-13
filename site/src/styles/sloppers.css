@@ -1,0 +1,1430 @@
+/*! Hallmark · macrostructure: Index-First with a focal number · genre: atmospheric · theme: custom "lights out, slop out"
+ * paper oklch(0 0 0) / oklch(1 0 0) · one accent: xslop blue, hue 265 (brand/tokens.css) · Mona Sans 125% display + Mona Sans 100% body
+ * axes: dark / geometric-sans / cool-cobalt · nav: X rail · footer: rail credit
+ * One concept: the page is an X thread with the color drained out. A face gets its color back when you look at it. */
+
+@import "./base.css";
+
+:root {
+  --sl-bar-h: 3.5rem;
+  --sl-controls-h: 4.25rem;
+  --sl-pad: var(--space-4);
+  --sl-face: 2.5rem;
+  --sl-face-gap: var(--space-3);
+  --sl-text-start: calc(var(--sl-pad) + var(--sl-face) + var(--sl-face-gap));
+  --sl-row-h: 4.25rem;
+  --sl-glow: color-mix(in oklch, var(--color-accent-fill) 60%, var(--color-clear));
+  --sl-drained: grayscale(1) brightness(0.66);
+  scroll-padding-top: calc(var(--sl-bar-h) + var(--space-2));
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --sl-glow: color-mix(in oklch, var(--color-accent-fill) 28%, var(--color-clear));
+    --sl-drained: grayscale(1) contrast(0.82) brightness(1.08);
+  }
+}
+
+/* Screen-reader heading. A real width lets a long translation wrap, so it cannot widen the page. */
+.sl-thread-title {
+  position: absolute;
+  width: 16rem;
+  height: 1px;
+  clip-path: inset(50%);
+  overflow-wrap: anywhere;
+}
+
+/* Column */
+.sl-rail {
+  display: none;
+}
+
+.sl-main {
+  max-width: 40rem;
+  margin-inline: auto;
+}
+
+/* Title bar, as on x.com: one sticky strip with the page name and its count */
+.sl-bar {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--sl-bar-h);
+  padding: var(--space-1) var(--sl-pad);
+  border-bottom: var(--rule) solid var(--color-line);
+  background: var(--color-bg);
+}
+
+.sl-bar-home {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: var(--control-h);
+  height: var(--control-h);
+  margin-left: calc(-1 * var(--space-2));
+  color: var(--xs-logo);
+}
+
+.sl-bar-home svg {
+  width: 1.75rem;
+  height: 1.75rem;
+}
+
+.sl-bar-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.sl-title {
+  font-size: var(--text-lg);
+  font-weight: var(--weight-display);
+  font-stretch: var(--stretch-heading);
+  line-height: var(--leading-snug);
+}
+
+.sl-bar-count {
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+  line-height: var(--leading-snug);
+}
+
+/* The focal post */
+.sl-focal {
+  padding: var(--space-4) var(--sl-pad) 0;
+}
+
+.sl-count {
+  display: block;
+  min-height: 0.96em;
+  font-size: clamp(4.5rem, 22vw, 9rem);
+  font-weight: var(--weight-display);
+  font-stretch: var(--stretch-display);
+  font-variant-numeric: tabular-nums;
+  line-height: 0.96;
+  letter-spacing: var(--tracking-display);
+  overflow-wrap: anywhere;
+  text-shadow: 0 0 0.42em var(--sl-glow);
+}
+
+.sl-count.is-loading::before {
+  content: "";
+  display: block;
+  width: 2.6ch;
+  height: 0.72em;
+  margin-top: 0.12em;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-2);
+}
+
+.sl-count-text {
+  display: block;
+  margin-top: var(--space-2);
+  font-size: var(--text-xl);
+  font-weight: var(--weight-strong);
+  font-stretch: var(--stretch-heading);
+  line-height: var(--leading-snug);
+}
+
+.sl-focal-error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+  margin-top: var(--space-4);
+  color: var(--color-text-muted);
+}
+
+/* The wall: flush squares, drained. The space is reserved before the photos arrive. */
+.sl-mosaic {
+  --sl-columns: 8;
+  --sl-rows: 4;
+  display: grid;
+  grid-template-columns: repeat(var(--sl-columns), minmax(0, 1fr));
+  aspect-ratio: var(--sl-columns) / var(--sl-rows);
+  margin: var(--space-5) calc(-1 * var(--sl-pad)) 0;
+  background: var(--color-surface);
+}
+
+.sl-tile,
+.sl-lit-tile {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+  object-fit: cover;
+}
+
+/* The faces on the wall are darker than the drained faces of the list: 0.9 and then 30% darker again. */
+.sl-tile {
+  filter: var(--sl-drained) brightness(0.63);
+  animation: sl-drain 1000ms var(--ease-out) var(--sl-delay, 0ms) backwards;
+}
+
+.sl-mosaic .is-dead {
+  visibility: hidden;
+}
+
+/* The spotlight: a color copy of the wall that shows only through a soft circle at the mouse. A mouse makes it visible (the hover rules below). */
+.sl-lit {
+  display: none;
+}
+
+/* The one load moment: the faces arrive in color and the color drains out. */
+@keyframes sl-drain {
+  from {
+    opacity: 0;
+    filter: none;
+  }
+
+  40% {
+    opacity: 1;
+    filter: none;
+  }
+}
+
+/* Top right of the list, across from the page name. */
+.sl-updated {
+  flex: none;
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+  line-height: var(--leading-snug);
+  white-space: nowrap;
+}
+
+/* A phone bar also holds the mark and Install; the date takes two short lines, so the page name keeps one. */
+@media (max-width: 29.99rem) {
+  .sl-updated {
+    max-width: 5.5rem;
+    white-space: normal;
+    text-align: right;
+  }
+}
+
+/* Below 360 px the page name needs the whole row, so the date drops to a right-aligned line of its own. */
+@media (max-width: 22.49rem) {
+  .sl-bar {
+    flex-wrap: wrap;
+    row-gap: 0;
+  }
+
+  .sl-updated {
+    order: 1;
+    flex-basis: 100%;
+    max-width: none;
+  }
+}
+
+/* The same four numbers, labels and look as the numbers in the front page strip. One row of four equal columns, centred, at every width. */
+.sl-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-top: var(--space-3);
+  padding-block: var(--space-3);
+  border-top: var(--rule) solid var(--color-line);
+  text-align: center;
+}
+
+.sl-metrics div {
+  display: flex;
+  flex-direction: column-reverse;
+  justify-content: flex-end;
+  align-items: center;
+  min-width: 0;
+  padding-inline: var(--space-2);
+}
+
+.sl-metrics div + div {
+  border-left: var(--rule) solid var(--color-line);
+}
+
+.sl-metrics dt {
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  line-height: 1.3;
+}
+
+.sl-metrics dd {
+  min-width: 0;
+  font-size: clamp(1.125rem, 1rem + 0.8vw, 1.5625rem);
+  font-weight: var(--weight-display);
+  font-stretch: var(--stretch-heading);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+.sl-metrics div:first-child dd {
+  color: var(--color-accent);
+}
+
+.sl-metrics dd:empty {
+  width: 3ch;
+  height: 0.8em;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-2);
+}
+
+/* What the list means */
+.sl-about {
+  display: grid;
+  padding: var(--space-3) var(--sl-pad);
+  border-top: var(--rule) solid var(--color-line);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+/* The X Corp line closes the sidebar, as on x.com. Without the sidebar it stays in the footer. */
+.sl-legal {
+  display: none;
+}
+
+.sl-h2 {
+  color: var(--color-text);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-strong);
+  font-stretch: var(--stretch-heading);
+  line-height: var(--leading-snug);
+}
+
+/* The rail is an accordion: one item open at a time (the details share a name). */
+.sl-acc {
+  border-top: var(--rule) solid var(--color-line);
+}
+
+.sl-acc:first-child {
+  border-top: 0;
+}
+
+.sl-acc-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: var(--control-h);
+  color: var(--color-text);
+  font-size: var(--text-md);
+  font-weight: var(--weight-strong);
+  cursor: pointer;
+  list-style: none;
+}
+
+.sl-acc-summary::-webkit-details-marker {
+  display: none;
+}
+
+.sl-acc-summary .sl-h2 {
+  font-size: inherit;
+}
+
+.sl-about-body {
+  display: grid;
+  gap: var(--space-3);
+  padding-bottom: var(--space-3);
+}
+
+.sl-acc-toggle {
+  flex: none;
+  width: 0.55rem;
+  height: 0.55rem;
+  margin-right: var(--space-1);
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(45deg);
+  transition: transform var(--dur-fast) var(--ease-out);
+}
+
+.sl-acc[open] .sl-acc-toggle {
+  transform: rotate(-135deg);
+}
+
+.sl-criteria-body {
+  display: grid;
+  gap: var(--space-5);
+  padding-bottom: var(--space-3);
+}
+
+.sl-crit-tier {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.sl-crit-h {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-strong);
+}
+
+.sl-crit-list {
+  display: grid;
+  gap: var(--space-2);
+  padding-left: 1.1em;
+}
+
+/* The stamp: ink outline, solid when confirmed and dashed when only flagged. The word carries the status. */
+.sl-stamp {
+  display: inline-block;
+  padding: 0.08em 0.42em;
+  border: 2px solid currentColor;
+  border-radius: var(--radius-sm);
+  color: var(--color-accent);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-display);
+  font-stretch: var(--stretch-heading);
+  letter-spacing: 0.05em;
+  line-height: 1.3;
+  text-transform: uppercase;
+  transform: rotate(-3deg);
+}
+
+.sl-stamp[data-status="flagged"] {
+  border-style: dashed;
+  color: var(--color-text-muted);
+}
+
+/* The thread: accounts that read like replies on X. Hairlines between the rows, no boxes. */
+.sl-thread {
+  border-top: var(--rule) solid var(--color-line);
+}
+
+.sl-thread:focus {
+  outline: none;
+}
+
+.sl-nojs {
+  padding: var(--space-6) var(--sl-pad);
+}
+
+/* Search and the status tabs. The tabs end on the hairline, so the mark of the active tab sits on it. */
+.sl-controls {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--sl-pad) 0;
+  border-bottom: var(--rule) solid var(--color-line);
+  background: var(--color-bg);
+}
+
+.sl-search {
+  position: relative;
+}
+
+.sl-search-icon {
+  position: absolute;
+  top: 50%;
+  left: var(--space-4);
+  width: 1.125rem;
+  height: 1.125rem;
+  color: var(--color-text-muted);
+  pointer-events: none;
+  translate: 0 -50%;
+}
+
+.sl-search input {
+  padding-left: var(--space-10);
+  border-color: var(--color-clear);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+}
+
+.sl-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.sl-tab {
+  display: flex;
+  justify-content: center;
+  min-width: var(--control-h);
+  min-height: var(--control-h);
+  padding: 0 var(--space-3);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-strong);
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease-out);
+}
+
+.sl-tab span {
+  position: relative;
+  display: flex;
+  align-items: center;
+  text-align: center;
+}
+
+.sl-tab[aria-pressed="true"] {
+  color: var(--color-text);
+}
+
+.sl-tab:focus-visible {
+  outline-offset: -2px;
+}
+
+/* As wide as its word, and never narrower than 56 px, as on x.com. It sits on the hairline under the tabs. */
+.sl-tab[aria-pressed="true"] span::after {
+  content: "";
+  position: absolute;
+  bottom: calc(-1 * var(--sl-tab-drop, 0px));
+  left: 50%;
+  width: max(100%, 3.5rem);
+  height: var(--space-1);
+  border-radius: var(--radius-pill);
+  background: var(--color-accent-fill);
+  translate: -50% 0;
+}
+
+/* The result and its order, on one line above the first row */
+.sl-listhead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--space-12);
+  padding-inline: var(--sl-pad);
+  border-bottom: var(--rule) solid var(--color-line);
+}
+
+.sl-result {
+  flex: 1;
+  min-width: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.sl-result:focus {
+  outline: none;
+}
+
+/* A quiet menu: the words and a chevron. The pill shows on hover and on focus. */
+.sl-sort {
+  position: relative;
+  flex: none;
+  margin-right: calc(-1 * var(--space-3));
+  color: var(--color-text-muted);
+  transition: color var(--dur-fast) var(--ease-out);
+}
+
+.sl-sort::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: var(--space-3);
+  width: 0.4375rem;
+  height: 0.4375rem;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  pointer-events: none;
+  transform: translateY(-70%) rotate(45deg);
+}
+
+.sl-sort select {
+  appearance: none;
+  width: auto;
+  padding: 0 var(--space-8) 0 var(--space-3);
+  border-color: var(--color-clear);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-bg);
+  color: inherit;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  field-sizing: content;
+  cursor: pointer;
+}
+
+/* Safari on a phone zooms into a field with text under 16 px when it gets focus. */
+@media (pointer: coarse) {
+  .sl-sort select {
+    font-size: var(--text-md);
+  }
+}
+
+/* The rows */
+.sl-list {
+  list-style: none;
+}
+
+.sl-list[aria-busy="true"] > .sl-slop:not(.is-skeleton) {
+  opacity: 0.45;
+}
+
+.sl-slop {
+  border-bottom: var(--rule) solid var(--color-line);
+  transition: background-color var(--dur-fast) var(--ease-out);
+  content-visibility: auto;
+  contain-intrinsic-size: auto var(--sl-row-h);
+}
+
+.sl-slop.is-open {
+  background: var(--color-surface);
+}
+
+/* Face, two lines of text, and the round button that opens the record. All three sit on the middle of the row. */
+.sl-row {
+  display: grid;
+  grid-template-columns: var(--sl-face) minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: var(--sl-face-gap);
+  padding: var(--space-3) var(--space-2) var(--space-3) var(--sl-pad);
+}
+
+.sl-face {
+  width: var(--sl-face);
+  height: var(--sl-face);
+  overflow: hidden;
+  border-radius: 50%;
+  background: var(--color-surface-2);
+  color: var(--color-text-muted);
+}
+
+.sl-photo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: var(--sl-drained);
+  transition: filter var(--dur-med) var(--ease-out);
+}
+
+.sl-slop.is-open .sl-photo,
+.sl-slop.is-lit .sl-photo {
+  filter: none;
+}
+
+.sl-nophoto {
+  width: 100%;
+  height: 100%;
+  fill: currentColor;
+}
+
+.sl-body {
+  min-width: 0;
+  line-height: 1.45;
+}
+
+/* The one primary line: the name is strong, the handle is quiet. An account with no name leads with its handle. */
+.sl-head {
+  overflow-wrap: anywhere;
+}
+
+/* A 44 px target in a shorter line: the padding adds the height and the negative margin gives the line its height back.
+ * The focus ring sits close to the words, inside the target, so it never covers the line below. */
+.sl-who,
+.sl-record-link {
+  --sl-tap: max(0.625rem, (var(--control-h) - 1lh) / 2);
+  display: inline-block;
+  margin: calc(-1 * var(--sl-tap)) -0.625rem;
+  padding: var(--sl-tap) 0.625rem;
+  border-radius: var(--radius-lg);
+  text-decoration: none;
+}
+
+.sl-who:focus-visible,
+.sl-record-link:focus-visible {
+  outline-offset: -0.5rem;
+}
+
+.sl-who {
+  color: var(--color-text-muted);
+}
+
+.sl-name,
+.sl-handle:first-child {
+  color: var(--color-text);
+  font-weight: var(--weight-strong);
+}
+
+.sl-who:hover .sl-name,
+.sl-who:hover .sl-handle:first-child {
+  text-decoration: underline;
+}
+
+/* Status, score and source: secondary, one size down. The status word and the number stay readable at a glance.
+ * A dot sits before each fact. The first fact of every line starts in the strip that the clip removes,
+ * so a dot shows only between two facts on one line and a wrapped line never starts or ends with one. */
+.sl-facts {
+  --sl-dot-gap: 1.1em;
+  display: flex;
+  flex-wrap: wrap;
+  margin-left: calc(-1 * var(--sl-dot-gap));
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  clip-path: inset(0 0 0 var(--sl-dot-gap));
+}
+
+.sl-fact {
+  position: relative;
+  min-width: 0;
+  padding-left: var(--sl-dot-gap);
+  overflow-wrap: anywhere;
+}
+
+.sl-fact::before {
+  content: "";
+  position: absolute;
+  top: calc(0.5lh - 1px);
+  left: calc(var(--sl-dot-gap) / 2 - 1px);
+  width: 2px;
+  height: 2px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.sl-status,
+.sl-score b {
+  color: var(--color-text);
+  font-weight: var(--weight-medium);
+}
+
+/* A brown pile with a slow, soft pulse when confirmed, a ring when only flagged. The word carries the status; the shape repeats it. */
+.sl-poop {
+  display: inline-block;
+  width: 1.05em;
+  height: 1.05em;
+  margin-right: 0.35em;
+  vertical-align: -0.17em;
+  transform-origin: 50% 90%;
+  animation: sl-poop-pulse 2.8s ease-in-out infinite;
+}
+
+.sl-poop-body {
+  fill: oklch(0.52 0.095 55);
+}
+
+.sl-poop-fold {
+  fill: none;
+  stroke: oklch(0.38 0.07 50);
+  stroke-width: 1.2;
+  stroke-linecap: round;
+}
+
+@keyframes sl-poop-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 0 oklch(0.52 0.095 55 / 0));
+  }
+
+  50% {
+    transform: scale(1.12);
+    filter: drop-shadow(0 0 0.22em oklch(0.6 0.1 55 / 0.55));
+  }
+}
+
+.sl-status[data-status="flagged"]::before {
+  content: "";
+  display: inline-block;
+  width: 0.5em;
+  height: 0.5em;
+  margin-right: 0.45em;
+  border: 1.5px solid var(--color-text-muted);
+  border-radius: 50%;
+  vertical-align: 0.06em;
+}
+
+/* The round button at the right end of the line: a 44 px target with a chevron that points down, and up when the record is open. */
+.sl-show {
+  display: grid;
+  place-items: center;
+  width: var(--control-h);
+  height: var(--control-h);
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition:
+    color var(--dur-fast) var(--ease-out),
+    background-color var(--dur-fast) var(--ease-out);
+}
+
+.sl-show:focus-visible {
+  outline-offset: -0.25rem;
+}
+
+.sl-show[aria-expanded="true"] {
+  background: var(--color-surface-2);
+  color: var(--color-text);
+}
+
+.sl-chevron {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-right: 1.75px solid currentColor;
+  border-bottom: 1.75px solid currentColor;
+  transform: translateY(-25%) rotate(45deg);
+  transition: transform var(--dur-med) var(--ease-out);
+}
+
+.sl-show[aria-expanded="true"] .sl-chevron {
+  transform: translateY(25%) rotate(-135deg);
+}
+
+.sl-show:active,
+.sl-tab:active,
+.sl-acc-summary:active {
+  transform: scale(0.97);
+}
+
+/* Skeleton rows hold the shape of a row and never move, so a slow network shows no looping motion. */
+.is-skeleton .sl-row {
+  min-height: var(--sl-row-h);
+}
+
+.is-skeleton .sl-head,
+.is-skeleton .sl-facts {
+  height: 0.8rem;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-2);
+}
+
+.is-skeleton .sl-head {
+  width: 42%;
+  margin-top: var(--space-1);
+}
+
+.is-skeleton .sl-facts {
+  width: 64%;
+  margin: var(--space-3) 0 0;
+  clip-path: none;
+}
+
+/* The open record: one card on the text column. Source and date on top, the numbers in tiles, the links in a quiet foot. */
+.sl-panel {
+  padding: var(--space-2) var(--sl-pad) var(--space-4) var(--sl-text-start);
+  animation: sl-open var(--dur-med) var(--ease-out);
+}
+
+@keyframes sl-open {
+  from {
+    opacity: 0;
+    transform: translateY(-0.25rem);
+  }
+}
+
+.sl-card {
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  border: var(--rule) solid var(--color-line);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg);
+  font-size: var(--text-sm);
+  cursor: auto;
+}
+
+.sl-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-3);
+}
+
+.sl-card-source {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.sl-card-label,
+.sl-stat dt,
+.sl-record dt {
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+}
+
+.sl-card-source strong {
+  font-weight: var(--weight-strong);
+}
+
+/* Top right corner, across from the source. */
+.sl-card-date {
+  margin-left: auto;
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.sl-card-story {
+  max-width: 60ch;
+  margin-top: calc(-1 * var(--space-2));
+  color: var(--color-text-muted);
+  line-height: var(--leading-snug);
+}
+
+/* The numbers: equal tiles with a hairline between them, the value above its label. */
+.sl-stats {
+  display: grid;
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
+  padding-block: var(--space-3);
+  border-block: var(--rule) solid var(--color-line);
+}
+
+.sl-stat {
+  display: flex;
+  flex-direction: column-reverse;
+  justify-content: flex-end;
+  gap: 0.125rem;
+  min-width: 0;
+  padding-inline: var(--space-3);
+}
+
+.sl-stat:first-child {
+  padding-left: 0;
+}
+
+.sl-stat + .sl-stat {
+  border-left: var(--rule) solid var(--color-line);
+}
+
+.sl-stat dd {
+  overflow-wrap: anywhere;
+  font-size: var(--text-lg);
+  font-weight: var(--weight-strong);
+  font-stretch: var(--stretch-heading);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+.sl-stat small {
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+}
+
+/* A filled dot when confirmed, a ring when only flagged, as on the line above. */
+.sl-stat-status::before {
+  content: "";
+  display: inline-block;
+  width: 0.45em;
+  height: 0.45em;
+  margin-right: 0.4em;
+  border: 1.5px solid var(--color-accent);
+  border-radius: 50%;
+  background: var(--color-accent);
+  vertical-align: 0.12em;
+}
+
+.sl-stat-status[data-status="flagged"]::before {
+  border-color: var(--color-text-muted);
+  background: none;
+}
+
+.sl-record {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--space-3) var(--space-4);
+}
+
+.sl-record dt {
+  line-height: var(--leading-snug);
+  padding-top: 0.1em;
+}
+
+.sl-record dd {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-1);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* The foot: the profile link, the X id in a low voice and a small Appeal button at the right. */
+.sl-card-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  margin-block: calc(-1 * var(--space-1));
+}
+
+.sl-xid {
+  min-width: 0;
+  margin-left: auto;
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  opacity: 0.45;
+  overflow-wrap: anywhere;
+}
+
+.sl-card-appeal {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.75rem;
+  padding: 0 var(--space-3);
+  border: var(--rule) solid var(--color-line-strong);
+  border-radius: var(--radius-pill);
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  text-decoration: none;
+  transition: color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+}
+
+/* The xid takes the push to the right when it is there; without it, the button takes it. */
+.sl-record-link + .sl-card-appeal {
+  margin-left: auto;
+}
+
+/* A 44 px target around the small button on touch screens. */
+@media (pointer: coarse) {
+  .sl-card-appeal {
+    min-height: var(--control-h);
+  }
+}
+
+.sl-card-appeal:hover {
+  border-color: var(--color-text-muted);
+  color: var(--color-text);
+}
+
+/* A phone gives the card the whole row width, smaller tile numbers, and the X id its own last line. */
+@media (max-width: 29.99rem) {
+  .sl-panel {
+    padding-left: var(--sl-pad);
+  }
+
+  /* The tiles wrap instead of squeezing; the gap, not a hairline, keeps them apart. */
+  .sl-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2) var(--space-6);
+  }
+
+  .sl-stat {
+    padding-inline: 0;
+  }
+
+  .sl-stat + .sl-stat {
+    border-left: 0;
+  }
+
+  .sl-stat-status {
+    white-space: nowrap;
+  }
+
+  .sl-stat dd {
+    font-size: var(--text-md);
+    overflow-wrap: normal;
+  }
+
+  .sl-xid {
+    order: 1;
+    flex-basis: 100%;
+    margin-left: 0;
+  }
+
+  .sl-card-appeal {
+    margin-left: auto;
+  }
+}
+
+.sl-aside {
+  color: var(--color-text-muted);
+}
+
+.sl-votebar {
+  width: 100%;
+  max-width: 20rem;
+  height: 0.375rem;
+  margin-top: var(--space-1);
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-2);
+}
+
+.sl-votebar-fill {
+  display: block;
+  height: 100%;
+  background: var(--color-accent-fill);
+  transform-origin: left;
+}
+
+.sl-pips {
+  display: flex;
+  gap: 0.1875rem;
+  width: 100%;
+  max-width: 20rem;
+  margin-top: var(--space-1);
+}
+
+.sl-pip {
+  flex: 1;
+  height: 0.375rem;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-2);
+}
+
+.sl-pip.is-on {
+  background: var(--color-accent-fill);
+}
+
+.sl-record-link {
+  color: var(--color-accent);
+  font-weight: var(--weight-medium);
+}
+
+.sl-record-link:hover {
+  text-decoration: underline;
+}
+
+.sl-link {
+  font-size: var(--text-sm);
+}
+
+/* End, empty and error lines. The element stays rendered while empty, so a screen reader announces each change. */
+.sl-note {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-3);
+  padding: var(--space-10) var(--sl-pad);
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+.sl-note:empty {
+  padding: 0;
+}
+
+.sl-note[data-state="end"] {
+  padding-bottom: var(--space-16);
+}
+
+.sl-more {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-4) var(--sl-pad) var(--space-10);
+}
+
+.sl-foot {
+  display: grid;
+  gap: var(--space-1);
+  max-width: 40rem;
+  margin-inline: auto;
+  padding: var(--space-6) var(--sl-pad) var(--space-10);
+  border-top: var(--rule) solid var(--color-line);
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+}
+
+/* The rail's install button sits in the credit block, which is the rail's bottom on wide screens. Narrow screens use the title bar's button. */
+.sl-install {
+  display: none;
+}
+
+/* The logo in the rail's install button takes the button's text colour. */
+.sl-install-logo {
+  display: block;
+  width: 3.6328rem;
+  height: 1.25rem;
+}
+
+/* The rail's links, for every width that has no rail. */
+.sl-foot-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--space-5);
+  font-size: var(--text-sm);
+}
+
+.sl-foot-nav a {
+  display: inline-block;
+  min-width: var(--control-h);
+  line-height: var(--control-h);
+}
+
+@media (hover: hover) {
+  .sl-row {
+    cursor: pointer;
+  }
+
+  .sl-slop:not(.is-skeleton):hover {
+    background: var(--color-surface);
+  }
+
+  .sl-slop:hover .sl-photo {
+    filter: none;
+  }
+
+  /* Over the wall the cursor is the light. The beam is full at its centre and fades out to its edge, as a real spotlight does. */
+  .sl-mosaic {
+    --sl-spot: 4.55rem;
+    position: relative;
+    cursor: none;
+  }
+
+  .sl-lit {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    grid-template-columns: repeat(var(--sl-columns), minmax(0, 1fr));
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity var(--dur-med) var(--ease-out);
+    mask-image: radial-gradient(
+      circle var(--sl-spot) at var(--sl-x, -50%) var(--sl-y, -50%),
+      rgb(0 0 0) 0%,
+      rgb(0 0 0 / 0.9) 30%,
+      rgb(0 0 0 / 0.55) 60%,
+      rgb(0 0 0 / 0.2) 82%,
+      rgb(0 0 0 / 0) 100%
+    );
+  }
+
+  .sl-mosaic:hover .sl-lit {
+    opacity: 1;
+  }
+
+  .sl-lit-tile {
+    filter: brightness(1.1);
+  }
+
+  .sl-slop:hover .sl-show {
+    color: var(--color-text);
+  }
+
+  .sl-show:hover {
+    background: var(--color-surface-2);
+    color: var(--color-accent);
+  }
+
+  .sl-tab:hover,
+  .sl-sort:hover {
+    color: var(--color-text);
+  }
+
+  .sl-sort select:hover {
+    border-color: var(--color-clear);
+    background-color: var(--color-surface);
+  }
+}
+
+@media (min-width: 40rem) {
+  /* 24 small faces a line; 8 rows keep the 3:1 height of the old 12 x 4 wall. */
+  .sl-mosaic {
+    --sl-columns: 24;
+    --sl-rows: 8;
+  }
+
+  .sl-main {
+    border-inline: var(--rule) solid var(--color-line);
+  }
+}
+
+/* From 768 px the controls sit in one row. */
+@media (min-width: 48rem) {
+  .sl-controls {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--space-3);
+    min-height: var(--sl-controls-h);
+    padding-top: 0;
+  }
+
+  /* The field and the tabs share one height on one line. The mark of the active tab drops to the hairline of the row. */
+  .sl-tabs {
+    --sl-tab-drop: calc((var(--sl-controls-h) - var(--control-h)) / 2);
+    grid-template-columns: repeat(3, auto);
+  }
+}
+
+/* The controls stay on screen under the title bar only in a tall window: on a phone held sideways two sticky rows would cover a third of it. */
+@media (min-width: 48rem) and (min-height: 40rem) {
+  :root {
+    scroll-padding-top: calc(var(--sl-bar-h) + var(--sl-controls-h) + var(--space-2));
+  }
+
+  .sl-controls {
+    position: sticky;
+    top: var(--sl-bar-h);
+    z-index: var(--z-sticky);
+  }
+}
+
+/* The right rail appears; the center keeps its hairlines. */
+@media (min-width: 64rem) {
+  .sl-main {
+    max-width: 61rem;
+    border-inline: 0;
+  }
+
+  .sl-bar {
+    max-width: 40rem;
+    border-inline: var(--rule) solid var(--color-line);
+  }
+
+  /* The second row takes all spare height, so a tall rail beside a short thread opens no gap under the post. */
+  .sl-grid {
+    display: grid;
+    grid-template-rows: auto 1fr;
+    grid-template-columns: 40rem 21rem;
+  }
+
+  .sl-focal,
+  .sl-thread {
+    grid-column: 1;
+    border-inline: var(--rule) solid var(--color-line);
+  }
+
+  .sl-about {
+    position: sticky;
+    top: 0;
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    align-self: start;
+    max-height: 100dvh;
+    overflow-y: auto;
+    padding: var(--space-5) var(--space-1) var(--space-5) var(--space-6);
+    border-top: 0;
+    scrollbar-color: var(--color-line-strong) var(--color-clear);
+    scrollbar-width: thin;
+  }
+
+  .sl-thread {
+    border-top: 0;
+  }
+
+  .sl-legal {
+    display: block;
+    padding-top: var(--space-4);
+    border-top: var(--rule) solid var(--color-line);
+    font-size: var(--text-xs);
+  }
+
+  .sl-foot-legal {
+    display: none;
+  }
+}
+
+/* The left rail appears and takes the footer with it. */
+@media (min-width: 80rem) {
+  .sl-page {
+    display: grid;
+    grid-template-columns: minmax(13rem, 1fr) minmax(0, 61rem) minmax(0, 1fr);
+  }
+
+  .sl-rail {
+    position: sticky;
+    top: 0;
+    display: flex;
+    grid-column: 1;
+    grid-row: 1;
+    flex-direction: column;
+    align-self: start;
+    justify-self: end;
+    gap: var(--space-5);
+    width: 13rem;
+    padding: var(--space-4) var(--space-5) var(--space-4) var(--space-1);
+  }
+
+  .sl-brand {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--control-h);
+    color: var(--color-text);
+    text-decoration: none;
+  }
+
+  .sl-brand-logo {
+    width: 5.8125rem;
+    height: 2rem;
+  }
+
+  .sl-nav {
+    display: grid;
+    gap: var(--space-1);
+  }
+
+  .sl-nav-link {
+    display: flex;
+    align-items: center;
+    min-height: var(--control-h);
+    color: var(--color-text-muted);
+    font-size: var(--text-lg);
+    font-weight: var(--weight-medium);
+    text-decoration: none;
+  }
+
+  .sl-nav-link:hover {
+    color: var(--color-text);
+  }
+
+  .sl-nav-link[aria-current="page"] {
+    color: var(--color-text);
+    font-weight: var(--weight-display);
+  }
+
+  .sl-install {
+    display: inline-flex;
+    justify-self: center;
+    margin-top: var(--space-3);
+  }
+
+  .sl-main {
+    grid-column: 2;
+    grid-row: 1;
+    width: 100%;
+    margin-inline: 0;
+  }
+
+  .sl-bar-home,
+  .sl-bar-install,
+  .sl-foot-nav {
+    display: none;
+  }
+
+  .sl-foot {
+    position: sticky;
+    bottom: 0;
+    grid-column: 1;
+    grid-row: 1;
+    align-self: end;
+    justify-self: end;
+    width: 13rem;
+    max-width: none;
+    margin: 0;
+    padding: var(--space-5) var(--space-5) var(--space-5) var(--space-1);
+    border-top: 0;
+  }
+}
+
+/* Short windows cannot hold the rail and the credit at once, so the credit waits at the end of the page. */
+@media (min-width: 80rem) and (max-height: 40rem) {
+  .sl-foot {
+    position: static;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sl-tile,
+  .sl-panel,
+  .sl-poop {
+    animation: none;
+  }
+}
+
+/* Last in the file, so it wins over each display value above. A CSS query, not a class set by the script, so a page with scripts reserves this space from the first paint. */
+@media (scripting: none) {
+  .sl-count-line,
+  .sl-mosaic,
+  .sl-updated,
+  .sl-metrics,
+  .sl-controls,
+  .sl-listhead {
+    display: none;
+  }
+}

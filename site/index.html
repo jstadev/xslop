@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark light" />
+    <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+    <title>xslop: Community Notes, for AI slop</title>
+    <meta name="description" content="xslop is a browser extension for x.com. Hit the x on a slop post or reply and that account is hidden and muted on X at once. Accounts that a person or voters with a track record confirm join a shared list." />
+    <link rel="canonical" href="https://x-slop.com/" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="xslop" />
+    <meta property="og:title" content="xslop: Community Notes, for AI slop" />
+    <meta property="og:description" content="Hit the x on a slop post or reply. That account disappears and is muted on X at once, and the crowd confirms the rest." />
+    <meta property="og:url" content="https://x-slop.com/" />
+    <meta property="og:image" content="https://x-slop.com/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="preload" href="../brand/fonts/mona-sans-latin-wdth-normal.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="./src/styles/site.css" />
+    <script type="module" src="./src/main.ts"></script>
+  </head>
+  <body>
+    <svg class="sprite" aria-hidden="true" focusable="false">
+      <defs>
+        <mask id="xs-mark-x" maskUnits="userSpaceOnUse" x="0" y="0" width="32" height="32">
+          <rect width="32" height="32" fill="#fff" />
+          <path d="M10.9 8.2l10 9.6m0-9.6-10 9.6" stroke="#000" stroke-width="4.3" stroke-linecap="round" />
+        </mask>
+        <symbol id="xs-mark" viewBox="0 0 32 32">
+          <path mask="url(#xs-mark-x)" fill="currentColor" d="M9 1.5H23A6 6 0 0 1 29 7.5V17.8A4.4 4.4 0 0 1 24.6 22.2Q22.5 22.2 22.5 24.4V24.95A1.65 1.65 0 1 1 20.5 24.95V23.6Q20.5 22.3 19.2 22.3H17.6Q16.2 22.9 14.8 22.3Q12.3 22.3 12.3 24.8V26.75A2.4 2.4 0 1 1 8.3 26.75V24.2Q8.3 22.6 7.4 22.6A4.4 4.4 0 0 1 3 18.2V7.5A6 6 0 0 1 9 1.5z" />
+        </symbol>
+        <symbol id="xs-word" viewBox="0 0 60 32">
+          <path fill="currentColor" d="M17.05 1.7c-.3.3-.3.3-.3 9.15 0 9.65-.05 9.25.65 9.75 .7.55.85 1.45.3 2.5-.6 1.2-.25 2.25.7 2.45 1.3.25 2.05-1.05 1.45-2.4-.5-1.15-.2-2.05.85-2.4 1.45-.5 1.4-.05 1.35-10.4-.05-10.15.3-8.95-2.65-8.95-2.05 0-2.05 0-2.35.3zM30.3 6c-4.55.65-7.4 3.65-7.4 7.8 0 3.25 1.25 5.4 3.9 6.7 1.6.75 1.95 1.6 1.25 2.95-.6 1.2-.1 2.35 1.05 2.35 1.1 0 1.65-1.05 1.25-2.25-.5-1.35.35-2.55 1.8-2.55 1.75 0 2.15 1.8.95 4.25-1.05 2.1-.4 3.85 1.35 3.85 1.8 0 2.4-1.6 1.45-3.85-.95-2.45-.65-3.95 1.15-5.3 5.5-4.35 3.8-12.4-2.9-13.8-.9-.2-2.95-.3-3.85-.15zM32.95 10.75c3.15 1.55 1.75 6.3-1.75 6.1-1.95-.15-3.15-1.5-3.05-3.4 .2-2.25 2.75-3.7 4.8-2.7zM49.6 6.05c-1 .3-1.4.45-2.15 1l-.65.45 0-.45c0-.8-.2-.85-2.55-.85-2.9 0-2.55-1.4-2.55 10.05 0 10.3-.05 9.85.6 10.2 .85.45 1 1.35.45 2.35-.75 1.35-.15 2.65 1.2 2.65 1.3 0 1.85-1.2 1.2-2.75-.5-1.15-.25-1.85.75-2.3 .8-.4.8-.4.85-3.25 0-2.45 0-2.5.25-2.7 .75-.6 1.75.55 1.75 2 0 .7 0 .8.25 1 .6.5 1.45.05 1.45-.7 0-.8.4-1.3 1.05-1.3 1.05 0 1.35 1.25.75 2.8-.65 1.55-.2 2.75 1.05 2.75 1.25 0 1.8-1.1 1.3-2.75-.55-1.75-.15-3.05 1.25-4.05 3.7-2.65 4.85-6.8 2.85-10.55-1.5-2.85-5.7-4.5-9.1-3.6zM52.2 10.95c1.35.7 1.95 2.1 1.5 3.65-.85 2.8-5.6 2.85-6.5.1-.9-2.8 2.25-5.15 5-3.75zM6.8 6.1c-4.55.6-7.15 3.35-6.05 6.35 .7 1.8 2.35 2.6 6.2 3.05 2.1.25 2.55.45 2.55 1.05 0 1.25-3.85 1.3-6.5.1-1.3-.65-1.25-.65-2.15.8-1.15 1.95-1.1 2 1.5 3.1 1.75.8 2.2 1.6 1.6 2.9-.5 1.2.05 2.35 1.15 2.35 1.1 0 1.7-1.15 1.25-2.45-.45-1.2.2-2.35 1.3-2.35 1.55 0 1.8 2.75.5 5.2-1.1 1.95-.5 3.65 1.2 3.65 1.75 0 2.45-1.7 1.6-3.8-1.2-2.95-.75-4.8 1.45-5.85 2.85-1.35 3.65-4.4 1.6-6.35-1-1.05-1.95-1.35-5.8-1.85-1.4-.2-1.85-.35-2-.8-.6-1.4 2.85-1.75 5.8-.55 1.2.5 1.3.45 1.85-.5 1.35-2.35 1.35-2.5.55-2.9-1.9-.95-5.25-1.5-7.6-1.15z" />
+        </symbol>
+        <symbol id="default-pfp" viewBox="0 0 24 24">
+          <circle cx="12" cy="9" r="4.2" />
+          <path d="M3.5 24c0-5.2 3.8-8.3 8.5-8.3s8.5 3.1 8.5 8.3z" />
+        </symbol>
+        <symbol id="x-logo" viewBox="0 0 24 24">
+          <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+        </symbol>
+      </defs>
+    </svg>
+
+    <a class="skip" href="#main">Skip to content</a>
+
+    <header class="strip strip-pinned">
+      <a class="brand" href="/" aria-label="xslop home">
+        <svg class="brand-logo" viewBox="0 0 93 32" role="img" aria-label="xslop"><use class="logo-mark" href="#xs-mark" width="32" height="32" /><use href="#xs-word" x="30.5" width="60" height="32" /></svg>
+      </a>
+      <section class="pulse" aria-label="Live numbers">
+        <dl class="pulse-row" id="stats" aria-busy="true">
+          <div class="pulse-stat"><dt>slop accounts</dt><dd data-stat="confirmed"><span class="skeleton"></span></dd></div>
+          <div class="pulse-stat"><dt>potential slop</dt><dd data-stat="flagged"><span class="skeleton"></span></dd></div>
+          <div class="pulse-stat"><dt>hidden slop</dt><dd data-stat="votes"><span class="skeleton"></span></dd></div>
+          <div class="pulse-stat"><dt>slop hunters</dt><dd data-stat="installs"><span class="skeleton"></span></dd></div>
+        </dl>
+        <p class="pulse-status" id="stats-updated" aria-live="polite"></p>
+      </section>
+      <nav class="strip-nav" aria-label="Page">
+        <a class="strip-link" href="/sloppers"><svg class="strip-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.5" /><path d="M2.5 20a6.5 6.5 0 0 1 13 0" /><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18.5 14.5A6.5 6.5 0 0 1 21.5 20" /></svg>Sloppers</a>
+        <a class="btn btn-primary btn-small strip-install" href="/download"><svg class="strip-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5v11M7 10l5 5 5-5M5 20h14" /></svg>Install</a>
+      </nav>
+    </header>
+
+    <div class="scene-host" id="scene" aria-hidden="true"></div>
+
+    <main id="main">
+      <section class="flood" id="flood" aria-labelledby="hero-title" data-scene-section>
+        <div class="flood-inner">
+          <h1 id="hero-title" class="flood-title" data-flood-avoid>
+            <span class="title-line">Hide AI <span class="swap-word">slop</span></span>
+            <span class="title-line">on <span class="x-logo"><span class="x-name">X</span><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#x-logo" /></svg></span></span>
+          </h1>
+          <p class="flood-tag" data-flood-avoid>Think Community Notes, but for slop.</p>
+          <ol class="flood-lead" data-flood-avoid>
+            <li class="flood-step"><strong class="flood-step-title">Install</strong> the browser extension for x.com.</li>
+            <li class="flood-step"><strong class="flood-step-title">Hide</strong> the slop by clicking the <span class="lead-key"><span class="x-name">X</span><svg viewBox="0 0 32 32" aria-hidden="true" focusable="false"><use href="#xs-mark" /></svg></span> on a slop post or reply. That account disappears for you and is muted on X.</li>
+            <li class="flood-step"><strong class="flood-step-title">Contribute</strong> to the global sloppers list and start engaging with real <strong>humans</strong> again.</li>
+          </ol>
+          <div class="flood-controls" data-flood-avoid>
+            <button type="button" class="xs-switch" id="hero-switch" role="switch" aria-checked="false" hidden>
+              <span translate="no">xslop</span>
+              <span class="xs-switch-track" aria-hidden="true"><span class="xs-switch-knob"></span></span>
+              <span class="xs-switch-state" aria-hidden="true">Off</span>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section class="river" id="thread" aria-labelledby="thread-title" data-scene-section>
+        <div class="river-head" data-river-avoid>
+          <h2 id="thread-title" class="h2">AI slop has taken over the replies on X.</h2>
+          <p class="river-count"><strong>31 of 35</strong> replies say nothing.</p>
+          <ul class="river-text">
+            <li>Click for a better feed</li>
+            <li>Sync the global slop list to hide what other readers already caught.</li>
+          </ul>
+          <div class="river-control" id="thread-control" hidden>
+            <h3 class="h3 river-control-title">Eliminate Slop</h3>
+            <button type="button" class="xs-switch" id="thread-switch" role="switch" aria-checked="false" aria-describedby="thread-status">
+              <span translate="no">xslop</span>
+              <span class="xs-switch-track" aria-hidden="true"><span class="xs-switch-knob"></span></span>
+              <span class="xs-switch-state" aria-hidden="true">Off</span>
+            </button>
+            <p class="river-status" id="thread-status" aria-live="polite">xslop is off. Turn it on to fold the template replies.</p>
+          </div>
+        </div>
+
+        <figure class="column" aria-labelledby="thread-caption">
+          <article class="column-post" aria-label="Post from @i_am_original">
+            <span class="avatar" aria-hidden="true">I</span>
+            <div class="column-post-main">
+              <p class="post-head"><span class="post-name">Legit User</span> <span class="post-handle">@i_am_original</span></p>
+              <p class="column-post-text">omg new model dropped today</p>
+              <p class="column-post-meta">12:00 PM · <strong>35</strong> replies</p>
+            </div>
+          </article>
+          <ol class="column-replies" id="thread-replies">
+            <li class="reply" data-slop="1" data-handle="growth_mindset_daily">
+              <div class="rcard"><span class="avatar" aria-hidden="true">G</span><div class="rcard-main"><p class="post-head"><span class="post-name">Growth Mindset Daily</span> <span class="post-handle">@growth_mindset_daily</span><span class="post-time">· 2s</span></p><p class="rcard-text">Great insight! Game-changer. 🚀</p></div></div>
+            </li>
+            <li class="reply" data-slop="1" data-handle="insightful_takes_ai">
+              <div class="rcard"><span class="avatar" aria-hidden="true">I</span><div class="rcard-main"><p class="post-head"><span class="post-name">Insightful Takes</span> <span class="post-handle">@insightful_takes_ai</span><span class="post-time">· 3s</span></p><p class="rcard-text">Absolutely love this perspective! 💯</p></div></div>
+            </li>
+            <li class="reply" data-slop="1" data-handle="future_of_work_hub_ai">
+              <div class="rcard"><span class="avatar" aria-hidden="true">F</span><div class="rcard-main"><p class="post-head"><span class="post-name">Future of Work Hub</span> <span class="post-handle">@future_of_work_hub_ai</span><span class="post-time">· 4s</span></p><p class="rcard-text">Couldn't agree more! 🙌</p></div></div>
+            </li>
+            <li class="reply" data-handle="devon_debugs_offline_sync">
+              <div class="rcard"><span class="avatar" aria-hidden="true">D</span><div class="rcard-main"><p class="post-head"><span class="post-name">Devon Hale</span> <span class="post-handle">@devon_debugs_offline_sync</span><span class="post-time">· 6m</span></p><p class="rcard-text">i know bro, i saw the benchmarks and i was like wtf</p></div></div>
+            </li>
+            <li class="reply" data-slop="1" data-handle="ai_thought_leader_x">
+              <div class="rcard"><span class="avatar" aria-hidden="true">T</span><div class="rcard-main"><p class="post-head"><span class="post-name">Thought Leader</span> <span class="post-handle">@ai_thought_leader_x</span><span class="post-time">· 5s</span></p><p class="rcard-text">Such valuable content. Thanks! 🙏</p></div></div>
+            </li>
+            <li class="reply" data-slop="1" data-handle="daily_hustle_notes_x">
+              <div class="rcard"><span class="avatar" aria-hidden="true">H</span><div class="rcard-main"><p class="post-head"><span class="post-name">Daily Hustle Notes</span> <span class="post-handle">@daily_hustle_notes_x</span><span class="post-time">· 7s</span></p><p class="rcard-text">This. So much this. 👏</p></div></div>
+            </li>
+            <li class="reply" data-slop="1" data-handle="mindset_mentor_daily">
+              <div class="rcard"><span class="avatar" aria-hidden="true">M</span><div class="rcard-main"><p class="post-head"><span class="post-name">Mindset Mentor</span> <span class="post-handle">@mindset_mentor_daily</span><span class="post-time">· 8s</span></p><p class="rcard-text">What a journey! Proud of you. 🔥</p></div></div>
+            </li>
+            <li class="reply" data-handle="priya_on_conflict_bugs">
+              <div class="rcard"><span class="avatar" aria-hidden="true">P</span><div class="rcard-main"><p class="post-head"><span class="post-name">Priya N.</span> <span class="post-handle">@priya_on_conflict_bugs</span><span class="post-time">· 11m</span></p><p class="rcard-text">you tried it? ill check it when i get back home</p></div></div>
+            </li>
+            <li class="reply" data-slop="1" data-handle="scale_with_sam_daily">
+              <div class="rcard"><span class="avatar" aria-hidden="true">S</span><div class="rcard-main"><p class="post-head"><span class="post-name">Scale With Sam</span> <span class="post-handle">@scale_with_sam_daily</span><span class="post-time">· 9s</span></p><p class="rcard-text">Persistence always pays off. 💡</p></div></div>
+            </li>
+            <li class="reply" data-handle="marco_ships_mobile_apps">
+              <div class="rcard"><span class="avatar" aria-hidden="true">M</span><div class="rcard-main"><p class="post-head"><span class="post-name">Marco Bianchi</span> <span class="post-handle">@marco_ships_mobile_apps</span><span class="post-time">· 14m</span></p><p class="rcard-text">Sure...i'll take another reset today... WHY NOT?</p></div></div>
+            </li>
+            <li class="reply" data-handle="aiko_reads_the_source">
+              <div class="rcard"><span class="avatar" aria-hidden="true">A</span><div class="rcard-main"><p class="post-head"><span class="post-name">Aiko T.</span> <span class="post-handle">@aiko_reads_the_source</span><span class="post-time">· 23m</span></p><p class="rcard-text">To be fair this was added to claude a few weeks ago lol</p></div></div>
+            </li>
+          </ol>
+          <p class="column-more" id="thread-more" data-count="24">
+            <svg class="column-more-mark" viewBox="0 0 32 32" aria-hidden="true" focusable="false" hidden><use href="#xs-mark" /></svg>
+            <span class="column-more-faces" aria-hidden="true"><span></span><span></span><span></span></span>
+            <span id="thread-more-text">+ 24 more template replies</span>
+          </p>
+          <figcaption id="thread-caption" class="column-note">
+            Fictional accounts. Each reply handle is longer than the 15 characters X allows, so no reply can belong to a real person. Click the x on any reply to try it.
+          </figcaption>
+        </figure>
+      </section>
+
+      <section class="bridge" id="bridge" aria-labelledby="bridge-title" data-scene-section>
+        <div class="bridge-track">
+          <div class="bridge-pin">
+            <div class="bridge-head">
+              <h2 id="bridge-title" class="h2">“Community Notes”, for slop.</h2>
+              <p class="bridge-steps" id="bridge-steps">
+                <span data-step-text="0">Each dot represents an xslop user. People who mark the same accounts, agree together. Those who are far apart usually disagree.</span>
+                <span data-step-text="1">Accounts are being marked on one end. The votes are adding up, but the account still remains off the list.</span>
+                <span data-step-text="2">Once the other side marks the same account, people who usually disagree with each other...</span>
+                <span data-step-text="3">Consensus has been reached, and the account is now <strong class="bridge-confirmed">confirmed</strong>.</span>
+              </p>
+            </div>
+            <div class="bridge-account" id="bridge-account" aria-hidden="true">
+              <span class="bridge-account-banner"></span>
+              <span class="bridge-account-top">
+                <span class="avatar avatar-default"><svg viewBox="0 0 24 24" focusable="false"><use href="#default-pfp" /></svg></span>
+                <span class="bridge-account-state">Not on the list</span>
+              </span>
+              <span class="bridge-account-who">
+                <span class="post-name">Potential Slopper</span>
+                <span class="post-handle">@potential_slopper</span>
+              </span>
+              <span class="bridge-account-bio">Great question! Here are 5 key takeaways. 🚀 Thought leader. Replies to everyone.</span>
+              <span class="bridge-account-stats">
+                <span><strong>12</strong> Following</span>
+                <span><strong>48.2K</strong> Followers</span>
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div class="bridge-fallback">
+          <figure id="bridge-figure" data-mode="both" aria-labelledby="bridge-caption">
+            <div class="bridge-toggle" role="group" aria-label="Voting pattern">
+              <button type="button" class="seg" data-mode="both" aria-pressed="true">Both sides mark it</button>
+              <button type="button" class="seg" data-mode="one" aria-pressed="false">One side piles on</button>
+            </div>
+            <svg class="bridge-art" viewBox="0 0 640 300" aria-hidden="true" focusable="false">
+              <g class="links-left">
+                <line x1="92" y1="88" x2="320" y2="150" class="l l-both" />
+                <line x1="140" y1="150" x2="320" y2="150" class="l l-both" />
+                <line x1="104" y1="214" x2="320" y2="150" class="l l-both" />
+                <line x1="56" y1="140" x2="320" y2="150" class="l" />
+                <line x1="150" y1="92" x2="320" y2="150" class="l" />
+                <line x1="62" y1="200" x2="320" y2="150" class="l" />
+                <line x1="152" y1="208" x2="320" y2="150" class="l" />
+              </g>
+              <g>
+                <line x1="548" y1="88" x2="320" y2="150" class="l l-both" />
+                <line x1="500" y1="150" x2="320" y2="150" class="l l-both" />
+                <line x1="536" y1="214" x2="320" y2="150" class="l l-both" />
+              </g>
+              <g class="raters-left">
+                <circle cx="92" cy="88" r="11" /><circle cx="140" cy="150" r="11" /><circle cx="104" cy="214" r="11" />
+                <circle cx="56" cy="140" r="11" /><circle cx="150" cy="92" r="11" /><circle cx="62" cy="200" r="11" /><circle cx="152" cy="208" r="11" />
+              </g>
+              <g class="raters-right">
+                <circle cx="548" cy="88" r="11" /><circle cx="500" cy="150" r="11" /><circle cx="536" cy="214" r="11" />
+                <circle cx="584" cy="140" r="11" /><circle cx="490" cy="92" r="11" /><circle cx="578" cy="200" r="11" /><circle cx="488" cy="208" r="11" />
+              </g>
+              <g>
+                <circle cx="320" cy="150" r="34" class="target-ring" />
+                <use href="#xs-mark" x="298" y="128" width="44" height="44" class="target-mark" />
+              </g>
+            </svg>
+            <div class="bridge-legend" aria-hidden="true">
+              <span>Raters on one side</span>
+              <span>Raters on the other side</span>
+            </div>
+            <p class="bridge-verdict" id="bridge-verdict" aria-live="polite">Both sides call it slop. The account is confirmed.</p>
+            <figcaption id="bridge-caption" class="bridge-caption">A diagram of the rule, not live data. Each dot is one rater; a line is a slop vote.</figcaption>
+          </figure>
+        </div>
+      </section>
+
+      <section class="drain" id="drain" aria-labelledby="drain-title" data-scene-section>
+        <div class="drain-track">
+          <div class="drain-pin">
+            <div class="drain-copy">
+              <h2 id="drain-title" class="h2">Confirmed accounts go down the drain.</h2>
+            </div>
+            <ol class="drain-accounts" id="drain-accounts" aria-label="Accounts on the list right now" hidden></ol>
+            <p class="drain-link">
+              <a class="btn btn-quiet" href="/sloppers">Check the sloppers list</a>
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <div class="clean" id="clean">
+        <div class="end">
+          <p class="end-statement" id="end-statement"><span class="end-part"><span class="x-logo"><span class="x-name">X</span><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#x-logo" /></svg></span> is for the people,</span> <span class="end-part">not <span class="swap-word">bots</span></span></p>
+        </div>
+        <!--include:footer-->
+      </div>
+    </main>
+  </body>
+</html>

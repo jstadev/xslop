@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <!--include:head-->
+    <title>Download xslop</title>
+    <meta name="description" content="Download the xslop browser extension for Chrome, Edge, Brave, Opera, Vivaldi, Arc, Firefox and Safari." />
+    <link rel="canonical" href="https://x-slop.com/download" />
+    <meta property="og:title" content="Download xslop" />
+    <meta property="og:description" content="Download the xslop browser extension for Chrome, Edge, Brave, Opera, Vivaldi, Arc, Firefox and Safari." />
+    <meta property="og:url" content="https://x-slop.com/download" />
+    <link rel="preload" href="../../brand/fonts/mona-sans-latin-wdth-normal.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="../src/styles/site.css" />
+    <script type="module" src="../src/pages/download.ts"></script>
+  </head>
+  <body>
+    <!--include:sprite-->
+
+    <a class="skip" href="#main">Skip to content</a>
+
+    <header class="strip">
+      <a class="brand" href="/" aria-label="xslop home">
+        <svg class="brand-logo" viewBox="0 0 93 32" role="img" aria-label="xslop"><use class="logo-mark" href="#xs-mark" width="32" height="32" /><use href="#xs-word" x="30.5" width="60" height="32" /></svg>
+      </a>
+    </header>
+
+    <main id="main">
+      <section class="xrow" id="install" aria-labelledby="install-title">
+        <span class="xrow-avatar" aria-hidden="true"><svg viewBox="0 0 32 32"><use href="#xs-mark" /></svg></span>
+        <div class="xrow-main">
+          <p class="xrow-who"><span class="post-name" translate="no">xslop</span> <span class="install-version" id="install-version" aria-live="polite">Loading the latest version…</span></p>
+          <h1 id="install-title" class="h2">Download <span translate="no">xslop</span></h1>
+          <div class="install-now" id="install-now"></div>
+          <noscript><p class="install-note">The download buttons need JavaScript, because they read the newest version from the server. Turn it on, or open /downloads/latest.json and go to the url of the zip for your browser.</p></noscript>
+          <div class="install-others" id="install-others"></div>
+        </div>
+      </section>
+    </main>
+
+    <!--include:footer-->
+  </body>
+</html>

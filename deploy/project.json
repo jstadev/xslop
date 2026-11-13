@@ -1,0 +1,48 @@
+{
+ "schema": 1,
+ "key": "xslop",
+ "name": "xslop",
+ "tier": "product",
+ "parent": null,
+ "repo": "jstadev/xslop",
+ "source": "/srv/projects/xslop",
+ "memory": "projects/xslop",
+ "release": {
+  "engine": "standard",
+  "build": "npm run ci:install && npm run build",
+  "test": "npm test",
+  "migrate": "node server/dist/scripts/migrate.js && node server/dist/scripts/import-seed.js && node server/dist/jobs/score.js",
+  "script": null
+ },
+ "runtime": {
+  "user": "xslop",
+  "node": "/opt/node24/bin",
+  "units": ["xslop-web"],
+  "timers": ["xslop-score", "xslop-profiles"]
+ },
+ "health": "/api/health",
+ "database": {
+  "kind": "postgres",
+  "schema": "xslop",
+  "url_env": "DATABASE_URL",
+  "supabase_auth": false
+ },
+ "channels": {
+  "prod": {
+   "domains": ["x-slop.com", "www.x-slop.com"],
+   "port": 3995,
+   "env": ["/etc/xslop/app.env"],
+   "data": ["/srv/apps/xslop/data/prod"]
+  },
+  "staging": {
+   "domains": ["xslop.koglabs.com"],
+   "port": 13995,
+   "env": ["/etc/xslop/staging.env"],
+   "data": ["/srv/apps/xslop/data/staging"]
+  }
+ },
+ "legacy": {
+  "units": {},
+  "paths": {}
+ }
+}

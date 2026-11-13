@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Welcome to xslop</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="ui.css">
+<script type="module" src="onboarding.js"></script>
+</head>
+<body class="page">
+<main class="wrap">
+  <header class="head">
+    <img src="mark.svg" alt="" width="40" height="40">
+    <p class="muted">Step <span id="step-now">1</span> of 3</p>
+  </header>
+
+  <div id="access" class="notice" hidden>
+    <p>xslop needs access to x.com and to its own server to work. Your browser asks you once.</p>
+    <button id="access-grant" class="btn primary" type="button">Allow access</button>
+    <p id="access-help" class="hint" hidden>Your browser did not ask. Open its extension settings and allow xslop on x.com.</p>
+  </div>
+
+  <section id="step-1" class="step">
+    <h1 tabindex="-1">One click does three things</h1>
+    <ol class="steps" role="list">
+      <li><strong>Hides the account</strong><span class="hint">Every post and reply folds to one line.</span></li>
+      <li><strong>Mutes it on X</strong><span class="hint">The X app on your phone hides it too.</span></li>
+      <li><strong>Adds one vote</strong><span class="hint">New votes wait for a check before they change the shared list.</span></li>
+    </ol>
+    <label class="switch big">
+      <input type="checkbox" id="mute-mark" role="switch">
+      <span class="track" aria-hidden="true"></span>
+      <span class="label"><strong>Mute on X when I mark an account</strong>
+        <span class="hint">Turn this off if you only want to hide and vote. You can change it in the popup at any time.</span></span>
+    </label>
+    <div class="nav">
+      <button class="btn primary next" type="button">Next</button>
+    </div>
+  </section>
+
+  <section id="step-2" class="step" hidden>
+    <h1 tabindex="-1">Two choices, both yours</h1>
+    <p>Both are off. xslop works without them.</p>
+    <label class="switch big">
+      <input type="checkbox" id="share" role="switch">
+      <span class="track" aria-hidden="true"></span>
+      <span class="label"><strong>Share anonymous signals</strong>
+        <span class="hint">The account and the post ids of each reply on post pages that you open. Nothing else.</span></span>
+    </label>
+    <label class="switch big">
+      <input type="checkbox" id="mute" role="switch">
+      <span class="track" aria-hidden="true"></span>
+      <span class="label"><strong>Mute the shared list too</strong>
+        <span class="hint">Mutes it on your X account, up to <span id="mute-max">40</span> a day. Needs an open x.com tab.</span></span>
+    </label>
+    <div class="nav">
+      <button class="btn back" type="button">Back</button>
+      <button class="btn primary next" type="button">Next</button>
+    </div>
+  </section>
+
+  <section id="step-3" class="step" hidden>
+    <h1 tabindex="-1">You are ready</h1>
+    <p>Open x.com. Each reply and post gets a small xslop button next to like and repost. Click it on slop. Each hidden post shows <em>Show</em> and <em>Undo</em>, or <em>Not slop</em> for accounts from the shared list. Undo also removes the mute.</p>
+    <h2>What xslop sends</h2>
+    <ul class="facts">
+      <li><strong>Your votes.</strong> Slop or not slop, the account handle, the post id, whether it is a reply or a post, the id of the post that it answers and the time of the post. Never the text. The account page on x-slop.com can link to these posts as evidence, after the server checks that the account wrote them.</li>
+      <li><strong>Signals, only if you turn them on.</strong> For each reply on a post page that you open: the handle of its account, its post id and the id of the post that it answers. Nothing else. The server does not store which install sent a signal.</li>
+      <li><strong>A random key.</strong> xslop makes a key on this device and signs each vote with it. When xslop registers, it sends the public part of the key and the xslop version. The key has no name, no email and no link to your X account.</li>
+      <li><strong>Never sent:</strong> your X login or cookies, your own handle, the people you follow, your mutes, and any page outside X.</li>
+    </ul>
+    <p class="hint">The server does not store your IP address. It keeps a short hash of your network range to slow down fake installs. If your own account is on the list, you can appeal at <a href="https://x-slop.com/check" target="_blank" rel="noopener">x-slop.com</a>.</p>
+    <p class="fine">xslop has no relation to X Corp. The x in the name means crossed out.</p>
+    <div class="nav">
+      <button class="btn back" type="button">Back</button>
+      <button id="done" class="btn primary" type="button">Open x.com</button>
+    </div>
+  </section>
+</main>
+</body>
+</html>

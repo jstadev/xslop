@@ -1,0 +1,30 @@
+name: Bug
+description: Something in the extension, the site or the server does not work as SPEC.md or the pages say.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happens
+      description: What you did, what you expected, and what you saw instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Leave out handles of real people. Use a link to a public post on x.com only when the bug needs it.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: The extension version (in the popup) or the commit.
+    validations:
+      required: true
+  - type: input
+    id: browser
+    attributes:
+      label: Browser and system
+      description: For example Chrome 142 on Windows 11, or Firefox 145 on Android.

@@ -1,0 +1,11 @@
+[Unit]
+Description=xslop scoring every 5 minutes ({{CHANNEL}})
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=5min
+AccuracySec=15s
+Unit={{UNIT}}.service
+
+[Install]
+WantedBy=timers.target

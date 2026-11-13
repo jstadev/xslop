@@ -1,0 +1,2204 @@
+/* Landing page. One scene runs behind the whole story: the flood, the river, the bridge, the drain.
+ * After the drain the page is one X column with the slop gone. Colors and fonts come only from brand/tokens.css. */
+
+@import "./base.css";
+
+/* Where the scene's centre sits on the screen: the bridge and the drain are aligned to it. */
+:root {
+  --scene-centre: 50lvh;
+  /* The bridge sits lower, so the title above it and the two camps form one centred group. BRIDGE_DROP in scene.ts matches it. */
+  --bridge-centre: 60lvh;
+  --poster: url("../../../brand/poster-dark.webp");
+  /* Boxes on the landing page are panes of glass. The scene shows through the fill, blurred. The edge is a soft blue.
+   * The shadow is small and fades out. No box has an opaque fill or a hard shadow. */
+  --radius-card: 24px;
+  --edge-soft: color-mix(in oklch, var(--color-accent) 42%, transparent);
+  --glass-blue: 10%;
+  --glass: color-mix(in oklch, color-mix(in oklch, var(--color-accent) var(--glass-blue), var(--color-surface)) 64%, transparent);
+  --glass-blur: blur(18px) saturate(1.4);
+  --shadow-soft: 0 6px 18px oklch(0 0 0 / 0.32);
+  --strip-h: 4rem;
+  --strip-offset: 0px;
+}
+
+@media (orientation: portrait) {
+  :root {
+    --scene-centre: 57lvh;
+    --bridge-centre: 57lvh;
+  }
+}
+
+/* The scene sits behind everything. It is the same height as the large viewport, so a phone's collapsing URL bar never resizes it. */
+.scene-host {
+  position: fixed;
+  inset: 0 0 auto;
+  z-index: 0;
+  height: 100lvh;
+  pointer-events: none;
+}
+
+.scene-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.strip,
+main {
+  position: relative;
+  z-index: var(--z-raised);
+}
+
+/* The strip: brand, the live numbers, the page links. Edge-aligned. On the landing page it sticks once it fits one line (see below). */
+.strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+  padding: var(--space-2) clamp(var(--space-4), 2.5vw, var(--space-8));
+  border-bottom: var(--rule) solid var(--color-line);
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--control-h);
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+.brand-logo {
+  flex: none;
+  width: 93px;
+  height: 32px;
+}
+
+.strip-nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* The two page links: a glass pill for the list, a lit accent pill for the install. Both carry a small line icon. */
+.strip-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 36px;
+  padding: var(--space-1) var(--space-4);
+  border: var(--rule) solid var(--edge-soft);
+  border-radius: var(--radius-pill);
+  background: var(--glass);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-strong);
+  font-stretch: var(--stretch-heading);
+  line-height: 1.1;
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    background-color var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
+}
+
+.strip-link:hover {
+  border-color: var(--color-accent);
+  background: color-mix(in oklch, var(--color-accent) 22%, transparent);
+}
+
+.strip-icon {
+  flex: none;
+  width: 1.15em;
+  height: 1.15em;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.strip-link .strip-icon {
+  color: var(--color-accent);
+}
+
+.strip-install {
+  box-shadow:
+    0 0 0 1px color-mix(in oklch, var(--color-accent) 55%, transparent),
+    0 4px 18px color-mix(in oklch, var(--color-accent-fill) 55%, transparent);
+  transition:
+    background-color var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-med) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
+}
+
+.strip-install:hover:not(:disabled) {
+  box-shadow:
+    0 0 0 1px var(--color-accent),
+    0 6px 26px color-mix(in oklch, var(--color-accent-fill) 80%, transparent);
+}
+
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .strip-link:hover,
+  .strip-install:hover {
+    transform: translateY(-1px);
+  }
+
+  .strip-install:hover .strip-icon {
+    animation: strip-drop 600ms var(--ease-out);
+  }
+}
+
+@keyframes strip-drop {
+  0% { transform: translateY(-3px); opacity: 0.4; }
+  100% { transform: none; opacity: 1; }
+}
+
+@media (pointer: coarse), (max-width: 48rem) {
+  .strip-link {
+    min-height: var(--control-h);
+  }
+}
+
+/* The numbers stay in their place while they load and when they fail, so the hero never moves. */
+.pulse {
+  order: 1;
+  flex: 1 1 100%;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-content: center;
+  gap: var(--space-2) var(--space-4);
+  padding-block: var(--space-1) var(--space-2);
+}
+
+.pulse-row {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-row: 1;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2) var(--space-4);
+}
+
+.pulse-row.is-unavailable {
+  visibility: hidden;
+}
+
+.pulse-stat {
+  display: flex;
+  flex-direction: column-reverse;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+.pulse-stat dd {
+  min-width: 0;
+  font-size: clamp(1.125rem, 1rem + 0.8vw, 1.5625rem);
+  font-weight: var(--weight-display);
+  font-stretch: var(--stretch-heading);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+.pulse-stat:first-child dd {
+  color: var(--color-accent);
+}
+
+.pulse-stat dt {
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  line-height: 1.3;
+}
+
+/* The status line speaks only when the numbers fail. It then sits where the numbers are, so the strip keeps its height. */
+.pulse-status {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  align-self: center;
+  min-width: 0;
+  color: var(--color-warn);
+  font-size: var(--text-sm);
+}
+
+.pulse-status:not(:empty)::before {
+  content: "";
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: var(--space-2);
+  vertical-align: 0.1em;
+  border-radius: 50%;
+  background: var(--color-warn);
+}
+
+/* Section heads */
+.h2 {
+  font-size: var(--text-h2);
+  font-weight: var(--weight-display);
+  font-stretch: var(--stretch-display);
+  line-height: 1.02;
+  letter-spacing: -0.02em;
+}
+
+.h3 {
+  font-size: var(--text-lg);
+  font-weight: var(--weight-strong);
+  font-stretch: var(--stretch-heading);
+  line-height: var(--leading-snug);
+}
+
+/* A pane of glass: every box on the landing page. Each box keeps its own radius. */
+.flood-step,
+.xs-switch,
+.river-head,
+.column,
+.bridge-account,
+.bridge-toggle,
+.drain-link .btn {
+  border: var(--rule) solid var(--edge-soft);
+  background: var(--glass);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  box-shadow: var(--shadow-soft);
+}
+
+/* Act one. The headline is the island in the flood: the cards part around its letters. */
+.flood {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: calc(100svh - 7rem);
+  padding: var(--space-8) var(--space-5) var(--space-12);
+  text-align: center;
+}
+
+.flood.is-over-card {
+  cursor: pointer;
+}
+
+/* The poster stands in for the scene on a device that does not run it. No box and no download until a rule sets content. */
+.flood::before {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: center / cover no-repeat;
+  mask-image: radial-gradient(ellipse 62% 58% at 50% 46%, var(--color-clear) 40%, var(--color-bg) 100%);
+}
+
+.no-scene .flood::before {
+  content: "";
+  background-image: var(--poster);
+}
+
+.flood-inner {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-5);
+  width: min(100%, 76rem);
+}
+
+.flood-title {
+  /* The longest line is 6.15em wide, so the third term keeps it on one line inside the page padding. */
+  font-size: clamp(2.25rem, min(15vw, 20svh, (100vw - 2.5rem) / 6.2), 12rem);
+  font-weight: var(--weight-display);
+  font-stretch: var(--stretch-display);
+  line-height: 0.9;
+  letter-spacing: -0.035em;
+  word-spacing: 0.06em;
+}
+
+.title-line {
+  display: block;
+}
+
+/* "slop" breaks into pixels and comes back as "bots", and "bots" in the last line as "AI" (hero/swap-word.ts). The HTML word stays for readers; the canvas draws
+ * the change and the other word, with room around the word for a wider word and the torn rows. */
+/* The canvas font. A Safari canvas has no font stretch, so this face is fixed at the display width. Same file, no new download. */
+@font-face {
+  font-family: "Mona Sans Canvas";
+  font-style: normal;
+  font-display: block;
+  font-weight: 200 900;
+  font-stretch: 125%;
+  src: url("../../../brand/fonts/mona-sans-latin-wdth-normal.woff2") format("woff2-variations");
+}
+
+.swap-word {
+  position: relative;
+}
+
+.swap-word.is-swapped {
+  color: transparent;
+}
+
+.swap-canvas {
+  position: absolute;
+  top: -0.12em;
+  left: -0.25em;
+  width: calc(100% + 0.6em);
+  height: calc(100% + 0.24em);
+  pointer-events: none;
+}
+
+/* The tagline has no box. A soft glow of the page colour keeps its letters clear of the cards behind them. */
+.flood-tag {
+  text-shadow:
+    0 0 0.12em var(--color-bg),
+    0 0 0.5em var(--color-bg);
+  font-size: var(--text-xl);
+  font-weight: var(--weight-strong);
+  font-stretch: var(--stretch-heading);
+  line-height: var(--leading-snug);
+}
+
+/* The intro: three short steps, each in its own pane of glass with a soft inner shadow. */
+.flood-lead {
+  display: grid;
+  gap: var(--space-3);
+  width: min(100%, 60rem);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+@media (min-width: 48.0625rem) {
+  .flood-lead {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.flood-step {
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-card);
+  color: var(--color-text);
+  font-size: var(--text-md);
+  line-height: 1.45;
+  text-align: left;
+  /* A soft drop shadow in three layers lifts each step off the scene: a close contact shadow, a wide fade and a faint top light. */
+  box-shadow:
+    0 1px 2px oklch(0 0 0 / 0.24),
+    0 12px 28px -8px oklch(0 0 0 / 0.5),
+    0 28px 64px -18px oklch(0 0 0 / 0.45),
+    inset 0 1px 0 oklch(1 0 0 / 0.08),
+    inset 0 2px 16px oklch(0 0 0 / 0.32);
+}
+
+@media (prefers-color-scheme: light) {
+  .flood-step {
+    box-shadow:
+      0 1px 3px oklch(0.21 0.015 250 / 0.12),
+      0 14px 30px -8px oklch(0.21 0.015 250 / 0.24),
+      0 30px 64px -18px oklch(0.21 0.015 250 / 0.22),
+      inset 0 1px 0 oklch(1 0 0 / 0.6),
+      inset 0 2px 14px oklch(0 0 0 / 0.08);
+  }
+}
+
+.flood-step-title {
+  display: block;
+  margin-bottom: var(--space-1);
+  font-weight: var(--weight-strong);
+  font-stretch: var(--stretch-heading);
+}
+
+/* The xslop button as the extension draws it on x.com: the mark in its blue circle, where the text says "Hit the". */
+.lead-key {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.6em;
+  height: 1.6em;
+  margin: -0.3em 0.1em;
+  vertical-align: middle;
+  border-radius: 999px;
+  color: var(--color-accent);
+  background: color-mix(in oklch, var(--color-accent) 16%, transparent);
+  line-height: 1;
+}
+
+.lead-key svg {
+  width: 0.9em;
+  height: 0.9em;
+}
+
+.flood-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3) var(--space-5);
+}
+
+/* The switch: a visible name, a track and a state word. */
+.xs-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 56px;
+  max-width: 100%;
+  padding: var(--space-2) var(--space-5);
+  border-radius: var(--radius-pill);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-lg);
+  font-weight: var(--weight-strong);
+  font-stretch: var(--stretch-heading);
+  overflow-wrap: anywhere;
+  cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease-out);
+}
+
+.xs-switch:hover {
+  border-color: var(--color-text-muted);
+}
+
+.xs-switch:active .xs-switch-knob {
+  scale: 0.92;
+}
+
+.xs-switch-track {
+  position: relative;
+  flex: none;
+  width: 52px;
+  height: 30px;
+  border-radius: var(--radius-pill);
+  background: var(--color-line-strong);
+  transition: background-color var(--dur-med) var(--ease-out);
+}
+
+.xs-switch-knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--color-text);
+  transition:
+    transform var(--dur-med) var(--ease-out),
+    scale var(--dur-fast) var(--ease-out),
+    background-color var(--dur-med) var(--ease-out);
+}
+
+.xs-switch-state {
+  min-width: 2.2em;
+  color: var(--color-text-muted);
+  font-size: var(--text-md);
+}
+
+.xs-switch[aria-checked="true"] .xs-switch-track {
+  background: var(--color-accent-fill);
+}
+
+.xs-switch[aria-checked="true"] .xs-switch-knob {
+  transform: translateX(22px);
+  background: var(--color-accent-ink);
+}
+
+.xs-switch[aria-checked="true"] .xs-switch-state {
+  color: var(--color-accent);
+}
+
+/* Act two. The camera rises: the flood becomes a river, and one X column stands in it. */
+.river {
+  display: grid;
+  gap: var(--space-10);
+  width: min(100%, 80rem);
+  margin-inline: auto;
+  padding: var(--space-24) var(--space-5);
+}
+
+/* Beside the column (1000 px and up) the head card stays in view while the column scrolls. */
+.river-head {
+  min-width: 0;
+  padding: var(--space-6);
+  border-radius: var(--radius-card);
+  /* A soft inner shadow under the outer one. The outer shadow stays first. */
+  box-shadow: var(--shadow-soft), inset 0 1px 18px color-mix(in oklch, var(--color-accent) 16%, transparent);
+}
+
+.river-count {
+  margin-top: var(--space-6);
+  color: var(--color-text-muted);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-medium);
+}
+
+.river-count strong {
+  display: block;
+  color: var(--color-text);
+  font-size: clamp(3rem, 2rem + 4vw, 5.2rem);
+  font-weight: var(--weight-display);
+  font-stretch: var(--stretch-display);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  letter-spacing: var(--tracking-display);
+  overflow-wrap: anywhere;
+}
+
+.river-text {
+  max-width: 30em;
+  margin-top: var(--space-4);
+  padding-left: 1.25em;
+  list-style: disc;
+}
+
+/* The demo switch stands in the centre of the head card under its title. */
+.river-control {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-8);
+  text-align: center;
+}
+
+.river-control-title {
+  font-size: var(--text-xl);
+}
+
+/* A light runs round the capsule edge, with a soft glow under it. Reduced motion keeps it still. */
+@property --xs-glow-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+.river-control .xs-switch {
+  position: relative;
+  isolation: isolate;
+  border-color: transparent;
+}
+
+.river-control .xs-switch::before,
+.river-control .xs-switch::after {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  background: conic-gradient(
+    from var(--xs-glow-angle),
+    transparent 0deg,
+    color-mix(in oklch, var(--color-accent) 30%, transparent) 90deg,
+    var(--color-accent) 160deg,
+    oklch(0.97 0.03 250) 180deg,
+    var(--color-accent) 200deg,
+    color-mix(in oklch, var(--color-accent) 30%, transparent) 270deg,
+    transparent 360deg
+  );
+  animation: xs-glow-spin 3.2s linear infinite;
+  pointer-events: none;
+}
+
+/* The ring: only the 2 px edge of the gradient shows. */
+.river-control .xs-switch::before {
+  padding: 2px;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+}
+
+/* The glow: the same gradient, blurred, behind the capsule. */
+.river-control .xs-switch::after {
+  z-index: -1;
+  filter: blur(14px);
+  opacity: 0.7;
+}
+
+@keyframes xs-glow-spin {
+  to {
+    --xs-glow-angle: 360deg;
+  }
+}
+
+/* Two lines reserved, so the status text never moves what is below it. */
+.river-status {
+  min-height: 2lh;
+  max-width: 30em;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+/* The X column: one pane, hairlines between its rows. */
+.column {
+  min-width: 0;
+  max-width: 40rem;
+  width: 100%;
+  justify-self: center;
+  border-radius: var(--radius-card);
+  overflow: clip;
+}
+
+.column-post {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-bottom: var(--rule) solid var(--color-line);
+}
+
+.column-post-main {
+  min-width: 0;
+}
+
+.column-post-text {
+  margin-top: var(--space-2);
+  font-size: 1.125rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.column-post-meta {
+  margin-top: var(--space-3);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.column-post-meta strong {
+  color: var(--color-text);
+  font-weight: var(--weight-strong);
+}
+
+.avatar {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--color-surface-2);
+  color: var(--color-text);
+  font-weight: var(--weight-strong);
+  font-stretch: var(--stretch-heading);
+}
+
+/* An account without a photo: a head and shoulders, cut by the circle. */
+.avatar-default {
+  overflow: hidden;
+  color: var(--color-text-muted);
+}
+
+.avatar-default svg {
+  width: 100%;
+  height: 100%;
+  fill: currentColor;
+}
+
+.post-head {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: var(--space-1);
+  min-width: 0;
+  line-height: 1.3;
+}
+
+.post-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-weight: var(--weight-strong);
+}
+
+.post-handle,
+.post-time {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--color-text-muted);
+}
+
+.column-replies {
+  list-style: none;
+}
+
+.reply {
+  border-bottom: var(--rule) solid var(--color-line);
+}
+
+.rcard {
+  position: relative;
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-12) var(--space-3) var(--space-4);
+}
+
+.rcard .avatar {
+  width: 32px;
+  height: 32px;
+  font-size: var(--text-sm);
+}
+
+.rcard-main {
+  min-width: 0;
+}
+
+.rcard .post-head {
+  font-size: var(--text-sm);
+}
+
+.rcard-text {
+  margin-top: var(--space-1);
+  overflow-wrap: anywhere;
+}
+
+/* The xslop x, the same control as in the extension. */
+.xbtn {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  display: grid;
+  place-items: center;
+  width: var(--control-h);
+  height: var(--control-h);
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition:
+    background-color var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
+}
+
+.xbtn svg {
+  width: 22px;
+  height: 22px;
+}
+
+.xbtn:hover {
+  color: var(--color-accent);
+  background: color-mix(in oklch, var(--color-accent) 16%, var(--color-clear));
+}
+
+.xbtn:active {
+  transform: scale(0.88);
+}
+
+.hidden-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 var(--space-2);
+  min-height: 32px;
+  padding: var(--space-1) var(--space-4);
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+}
+
+/* A hidden reply is one gray line: the mark, the handle and the buttons take the muted color too. */
+.hidden-bar svg {
+  flex: none;
+  width: 14px;
+  height: 14px;
+}
+
+.hidden-bar strong {
+  font-weight: var(--weight-strong);
+  overflow-wrap: anywhere;
+}
+
+.hidden-bar .btn-text {
+  justify-content: center;
+  min-width: var(--control-h);
+  min-height: var(--control-h);
+  color: inherit;
+}
+
+/* A wide screen with a mouse gets the low line. A touch screen keeps 44 px targets at every width, also a phone on its side. */
+@media (min-width: 48.0625rem) and (pointer: fine) {
+  .hidden-bar .btn-text {
+    min-width: 0;
+    min-height: 20px;
+  }
+}
+
+/* While xslop is on, the replies from people that stay open shine: a brighter fill, a soft glowing border and a soft glow. */
+.is-clean .reply:has(> .hidden-bar[hidden]) .rcard {
+  z-index: 1;
+  background: color-mix(in oklch, white 9%, transparent);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in oklch, white 26%, transparent),
+    inset 0 0 24px color-mix(in oklch, white 7%, transparent),
+    0 0 6px color-mix(in oklch, white 22%, transparent),
+    0 0 26.4px color-mix(in oklch, white 13.2%, transparent);
+}
+
+@media (prefers-color-scheme: light) {
+  .is-clean .reply:has(> .hidden-bar[hidden]) .rcard {
+    background: color-mix(in oklch, white 70%, transparent);
+    box-shadow:
+      inset 0 0 0 1px color-mix(in oklch, var(--color-accent) 28%, transparent),
+      inset 0 0 24px color-mix(in oklch, white 80%, transparent),
+      0 0 6px color-mix(in oklch, var(--color-accent) 22%, transparent),
+      0 0 19.8px color-mix(in oklch, var(--color-accent) 15.4%, transparent);
+  }
+}
+
+.bar-label {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* Show and Undo stay together at the end of the line, or wrap together. */
+.bar-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-left: auto;
+}
+
+.column-more {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 52px;
+  padding: var(--space-2) var(--space-4);
+  border-bottom: var(--rule) solid var(--color-line);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+}
+
+.column-more-mark {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  color: var(--color-accent);
+}
+
+.column-more-faces {
+  display: inline-flex;
+  flex: none;
+}
+
+.column-more-faces span {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--color-surface-2);
+  box-shadow: 0 0 0 2px var(--color-bg);
+}
+
+.column-more-faces span + span {
+  margin-left: -8px;
+}
+
+.column-note {
+  padding: var(--space-3) var(--space-4);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+/* Act three. Two camps of raters, one account between them. The scroll plays the votes. */
+.bridge-pin {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  padding: var(--space-16) var(--space-5);
+  overflow: clip;
+  text-align: center;
+}
+
+.has-scene .bridge-track {
+  height: 400svh;
+}
+
+.has-scene .bridge-pin {
+  position: sticky;
+  top: 0;
+  height: 100svh;
+  align-content: start;
+}
+
+/* In landscape the title starts at 22svh, so the title and the bridge below it form one centred group. The head's margin counts. */
+@media (orientation: landscape) {
+  .has-scene .bridge-pin {
+    padding-top: max(0px, 22svh - var(--strip-offset) - var(--space-8));
+  }
+}
+
+.bridge-head {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-4);
+  width: min(100%, 56rem);
+}
+
+/* The pinned scene sticks under the strip. The margin keeps the title clear of it. */
+.has-scene .bridge-head {
+  margin-top: calc(var(--strip-offset) + var(--space-8));
+}
+
+.bridge-steps {
+  display: grid;
+  max-width: 40em;
+  font-size: clamp(1.0625rem, 1rem + 0.4vw, 1.3125rem);
+  line-height: 1.4;
+}
+
+.bridge-steps span {
+  display: block;
+}
+
+.bridge-steps span + span {
+  margin-top: var(--space-3);
+}
+
+/* All four captions stay in the accessibility tree, so a screen reader gets the whole explanation. */
+.has-scene .bridge-steps span {
+  grid-area: 1 / 1;
+  justify-self: center;
+  /* A block, not a grid: in a grid the blue word becomes its own row. */
+  display: block;
+  align-content: center;
+  text-align: center;
+  margin-top: 0;
+  padding: var(--space-3) var(--space-6);
+  border: var(--rule) solid var(--edge-soft);
+  border-radius: var(--radius-card);
+  background: var(--glass);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  box-shadow: var(--shadow-soft);
+  color: var(--color-text);
+  font-weight: var(--weight-medium);
+  opacity: 0;
+  /* A hidden caption lies over the shown one; it must not take clicks or text selection. */
+  pointer-events: none;
+}
+
+.has-scene .bridge-steps span.is-active {
+  pointer-events: auto;
+  opacity: 1;
+  animation: caption-in var(--dur-med) var(--ease-out);
+}
+
+/* The word "confirmed" in the last caption is blue. A strong, because a nested span gets the caption box. */
+.bridge-confirmed {
+  color: var(--color-accent);
+  font-weight: inherit;
+}
+
+@keyframes caption-in {
+  from {
+    translate: 0 0.4em;
+  }
+}
+
+/* The account on the bridge. It sits exactly on the beam, at the centre of the canvas. */
+.bridge-account {
+  display: none;
+}
+
+/* It reads as an X profile: a banner, the photo over its edge, the verdict where X puts the Follow button, then name, handle, bio and counts. */
+.has-scene .bridge-account {
+  position: absolute;
+  top: var(--bridge-centre);
+  left: 50%;
+  display: block;
+  overflow: hidden;
+  width: 20rem;
+  max-width: calc(100% - var(--space-8));
+  padding: 0 var(--space-4) var(--space-4);
+  border-radius: var(--radius-card);
+  text-align: left;
+  transform: translate(-50%, -50%);
+  transition:
+    border-color var(--dur-med) var(--ease-out),
+    box-shadow var(--dur-med) var(--ease-out);
+}
+
+.bridge-account-banner {
+  display: block;
+  height: 5.5rem;
+  margin: 0 calc(-1 * var(--space-4));
+  background: linear-gradient(135deg, var(--color-surface-2), color-mix(in oklch, var(--color-accent) 28%, var(--color-surface)));
+}
+
+.bridge-account-top {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-top: -2.25rem;
+}
+
+.bridge-account-top .avatar {
+  width: 72px;
+  height: 72px;
+  border: 3px solid var(--color-surface);
+}
+
+.bridge-account-who {
+  display: grid;
+  min-width: 0;
+  margin-top: var(--space-2);
+  line-height: 1.25;
+}
+
+.bridge-account-who .post-name {
+  font-size: var(--text-lg);
+}
+
+.bridge-account-bio {
+  display: block;
+  margin-top: var(--space-2);
+  font-size: var(--text-sm);
+  line-height: 1.4;
+}
+
+.bridge-account-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  margin-top: var(--space-2);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.bridge-account-stats strong {
+  color: var(--color-text);
+  font-weight: var(--weight-strong);
+}
+
+.bridge-account-state {
+  margin-bottom: var(--space-1);
+  padding: var(--space-1) var(--space-4);
+  border: var(--rule) solid var(--edge-soft);
+  border-radius: var(--radius-pill);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-strong);
+  font-stretch: var(--stretch-heading);
+  white-space: nowrap;
+  transition: border-color var(--dur-med) var(--ease-out);
+}
+
+.bridge-account[data-confirmed="true"] {
+  border-color: color-mix(in oklch, var(--color-accent) 60%, transparent);
+  box-shadow:
+    0 0 0 4px color-mix(in oklch, var(--color-accent) 12%, transparent),
+    var(--shadow-soft);
+}
+
+.bridge-account[data-confirmed="true"] .bridge-account-state {
+  border-color: color-mix(in oklch, var(--color-accent) 60%, transparent);
+  color: var(--color-accent);
+}
+
+/* The static version of the bridge. */
+.bridge-fallback {
+  width: min(100%, 44rem);
+  margin-inline: auto;
+  padding: 0 var(--space-5) var(--space-20);
+}
+
+.has-scene .bridge-fallback {
+  display: none;
+}
+
+.bridge-toggle {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  border-radius: var(--radius-lg);
+}
+
+.seg {
+  min-height: var(--control-h);
+  padding: 0 var(--space-4);
+  border: 0;
+  border-radius: var(--radius-md);
+  background: var(--color-clear);
+  color: var(--color-text-muted);
+  font: inherit;
+  font-weight: var(--weight-strong);
+  font-stretch: var(--stretch-heading);
+  cursor: pointer;
+  transition:
+    background-color var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out);
+}
+
+.seg:hover {
+  color: var(--color-text);
+}
+
+.seg[aria-pressed="true"] {
+  background: var(--color-text);
+  color: var(--color-bg);
+}
+
+.seg[aria-pressed="true"]:focus-visible {
+  background: var(--color-surface-2);
+  color: var(--color-text);
+  transition: none;
+}
+
+.bridge-art {
+  width: 100%;
+  height: auto;
+  margin-top: var(--space-6);
+}
+
+.bridge-art .l {
+  stroke: var(--color-accent);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  opacity: 0;
+  transition: opacity 280ms var(--ease-out);
+}
+
+[data-mode="both"] .l-both,
+[data-mode="one"] .links-left .l {
+  opacity: 1;
+}
+
+.raters-left circle {
+  fill: var(--color-text);
+}
+
+.raters-right circle {
+  fill: var(--color-bg);
+  stroke: var(--color-text);
+  stroke-width: 2.5;
+}
+
+.target-ring {
+  fill: var(--color-surface);
+  stroke: var(--color-line-strong);
+  stroke-width: 2;
+}
+
+.target-mark {
+  color: var(--color-text-muted);
+  transition: color var(--dur-med) var(--ease-out);
+}
+
+[data-mode="both"] .target-mark {
+  color: var(--color-accent);
+}
+
+.bridge-legend {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-4);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.bridge-verdict {
+  margin-top: var(--space-5);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-strong);
+  font-stretch: var(--stretch-heading);
+}
+
+.bridge-caption {
+  margin-top: var(--space-2);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+/* Act four. The confirmed accounts spiral into the mark, and the camera follows them through the hole. */
+.drain-pin {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: var(--space-6);
+  padding: calc(var(--space-16) * 2) var(--space-5) var(--space-20);
+  overflow: clip;
+  text-align: center;
+}
+
+.has-scene .drain-track {
+  height: 320svh;
+}
+
+.has-scene .drain-pin {
+  position: sticky;
+  top: 0;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  height: 100svh;
+  padding-bottom: var(--space-8);
+}
+
+.drain-copy {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-3);
+  width: min(100%, 48rem);
+}
+
+.drain-accounts {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-2) var(--space-5);
+  width: min(100%, 60rem);
+  list-style: none;
+}
+
+.has-scene .drain-accounts {
+  position: absolute;
+  top: calc(var(--scene-centre) - 50%);
+  left: 0;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+.has-scene .drain-accounts li {
+  grid-area: 1 / 1;
+  will-change: transform, opacity;
+}
+
+/* The ring of accounts covers the whole pin. The button stays on top of it, and stays clickable. */
+.has-scene .drain-link {
+  position: relative;
+  z-index: var(--z-raised);
+  grid-row: 3;
+}
+
+/* Each profile is a pill of the same glass. It has no blur: the page moves 14 of them in every frame. */
+.drain-account {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--control-h);
+  padding: 0 var(--space-4) 0 6px;
+  border: var(--rule) solid var(--edge-soft);
+  border-radius: var(--radius-pill);
+  background: var(--glass);
+  box-shadow: var(--shadow-soft);
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  text-decoration: none;
+}
+
+.has-scene .drain-accounts .drain-account {
+  white-space: nowrap;
+}
+
+.drain-account:hover .drain-handle {
+  text-decoration: underline;
+}
+
+.drain-avatar {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--color-surface-2);
+}
+
+/* The letter is a picture of the account, not part of the link's name, so it is not text in the DOM. */
+.drain-monogram {
+  display: grid;
+  place-items: center;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-strong);
+}
+
+/* After the drain the page ends in one low band: the footer. */
+.clean {
+  --clean-pad: clamp(var(--space-4), 2.5vw, var(--space-8));
+  position: relative;
+  border-top: var(--rule) solid var(--color-line);
+  background: var(--color-bg);
+}
+
+/* The last line of the page. Without the scene it stands on top of the band. It breaks only after the comma. */
+.end {
+  padding: var(--space-24) var(--clean-pad);
+}
+
+.end-statement {
+  display: flex;
+  flex-wrap: wrap;
+  place-content: center;
+  column-gap: 0.25em;
+  /* The second term keeps two lines clear of the button on a low screen. */
+  font-size: clamp(1.75rem, min(0.4rem + 7vw, 9.5svh), 4.5rem);
+  font-weight: var(--weight-display);
+  font-stretch: var(--stretch-display);
+  line-height: 1;
+  letter-spacing: var(--tracking-display);
+  text-align: center;
+}
+
+.end-part {
+  min-width: 0;
+}
+
+/* With the scene the line stands in the middle of the last screen, on the blue inside the mark.
+ * The box ends at the band. The line is as high as the screen above the band, and it sticks there for the last
+ * quarter screen of the page, so it appears in its place (hero/story-page.ts sets how visible it is). */
+.has-scene .end {
+  position: absolute;
+  inset: calc(100% - 125svh + var(--strip-offset)) 0 100%;
+  padding-block: 0;
+  pointer-events: none;
+}
+
+.has-scene .end-statement {
+  position: sticky;
+  top: var(--strip-offset);
+  height: calc(100% - 25svh);
+  transition: opacity var(--dur-med) var(--ease-out);
+}
+
+/* White keeps 3:1 on the blue of the dark theme. The blue of the light theme is pale, so the text colour stays. */
+@media (prefers-color-scheme: dark) {
+  .has-scene .end-statement {
+    color: var(--color-accent-ink);
+  }
+}
+
+.xrow,
+.site-foot {
+  width: 100%;
+  max-width: 40rem;
+  margin-inline: auto;
+  border-inline: var(--rule) solid var(--color-line);
+  border-bottom: var(--rule) solid var(--color-line);
+}
+
+.clean .site-foot {
+  width: min(100% - 2 * var(--clean-pad), 76rem);
+  max-width: none;
+  margin-inline: auto;
+}
+
+.xrow {
+  position: relative;
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  gap: var(--space-3);
+  padding: var(--space-5) var(--space-4) var(--space-8);
+}
+
+/* The thread line: it joins each row to the next one, as on X. */
+.xrow::before {
+  content: "";
+  position: absolute;
+  top: calc(var(--space-5) + 44px);
+  bottom: calc(-1 * var(--space-5));
+  left: calc(var(--space-4) + 19px);
+  z-index: 1;
+  width: 2px;
+  background: var(--color-line);
+}
+
+.xrow-avatar {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--color-surface-2);
+  color: var(--xs-logo);
+}
+
+.xrow-avatar svg {
+  width: 24px;
+  height: 24px;
+}
+
+.xrow-main {
+  min-width: 0;
+}
+
+.xrow-who {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-3);
+  margin-bottom: var(--space-2);
+}
+
+.xrow-text {
+  margin-top: var(--space-3);
+  max-width: 34em;
+}
+
+.xrow-text-aside {
+  font-size: var(--text-xs);
+  font-style: italic;
+}
+
+.steps {
+  margin-top: var(--space-5);
+  list-style: none;
+}
+
+.steps > li {
+  padding-block: var(--space-4);
+  border-top: var(--rule) solid var(--color-line);
+}
+
+/* Each sentence of a step is its own blue bullet. */
+.step-points {
+  margin-top: var(--space-1);
+  padding-left: 1.25em;
+  list-style: disc;
+}
+
+.step-points li + li {
+  margin-top: var(--space-1);
+}
+
+.step-points li::marker {
+  color: var(--color-accent);
+}
+
+.inline-mark {
+  display: inline-block;
+  width: 1.15em;
+  height: 1.15em;
+  vertical-align: -0.2em;
+}
+
+.rules-body {
+  margin-top: var(--space-5);
+}
+
+.rules > div {
+  padding-block: var(--space-4);
+  border-top: var(--rule) solid var(--color-line);
+}
+
+.rules dd {
+  margin-top: var(--space-1);
+}
+
+.rule-list {
+  margin-top: var(--space-2);
+  padding-left: 1.25em;
+}
+
+.rule-list li + li {
+  margin-top: var(--space-1);
+}
+
+.seed-note {
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: var(--rule) solid var(--color-line);
+  color: var(--color-text-muted);
+}
+
+/* Install */
+.install-version {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.install-version.is-error {
+  color: var(--color-warn);
+}
+
+/* The download list loads after the page: the two blocks hold their place, so the footer does not jump. */
+.install-now {
+  min-height: 28rem;
+  margin-top: var(--space-4);
+}
+
+.install-detected {
+  font-size: var(--text-lg);
+  font-weight: var(--weight-strong);
+  font-stretch: var(--stretch-heading);
+}
+
+.install-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3) var(--space-4);
+  margin-top: var(--space-4);
+}
+
+.dl-meta {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.sha {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  overflow-wrap: anywhere;
+}
+
+.install-steps {
+  margin-top: var(--space-5);
+  padding-left: 1.5em;
+}
+
+.install-steps li {
+  padding-left: var(--space-1);
+  margin-top: var(--space-2);
+}
+
+.install-steps li::marker {
+  color: var(--color-accent);
+  font-weight: var(--weight-strong);
+}
+
+.install-note {
+  max-width: 36em;
+  margin-top: var(--space-4);
+  color: var(--color-text-muted);
+}
+
+.install-others {
+  min-height: 31rem;
+  margin-top: var(--space-6);
+}
+
+.install-other {
+  border-top: var(--rule) solid var(--color-line);
+}
+
+.install-other[open] {
+  padding-bottom: var(--space-4);
+}
+
+/* A question or a browser in a list: each is a collapsed line, like a hidden reply. */
+.install-other summary,
+.faq-list summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-4);
+  min-height: 56px;
+  padding-block: var(--space-3);
+  list-style: none;
+  cursor: pointer;
+  font-weight: var(--weight-strong);
+  font-stretch: var(--stretch-heading);
+  overflow-wrap: anywhere;
+}
+
+.install-other summary::-webkit-details-marker,
+.faq-list summary::-webkit-details-marker {
+  display: none;
+}
+
+.toggle {
+  color: var(--color-accent);
+  font-weight: var(--weight-medium);
+  font-stretch: var(--stretch-body);
+}
+
+.toggle::before {
+  content: "Show";
+}
+
+details[open] > summary .toggle::before {
+  content: "Hide";
+}
+
+/* Check a handle, appeal */
+.appeal-head {
+  margin-top: var(--space-6);
+}
+
+/* The appeal in three steps: numbered dots joined by a short line, like the rows of a thread. */
+.appeal-path {
+  display: grid;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+  list-style: none;
+  counter-reset: step;
+}
+
+.appeal-head + .appeal-path {
+  margin-top: var(--space-3);
+}
+
+.appeal-path li {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1.75em minmax(0, 1fr);
+  gap: var(--space-3);
+  line-height: 1.75;
+  counter-increment: step;
+}
+
+.appeal-path li::before {
+  content: counter(step);
+  display: grid;
+  place-items: center;
+  width: 1.75em;
+  height: 1.75em;
+  border-radius: 50%;
+  background: color-mix(in oklch, var(--color-accent) 14%, var(--color-bg));
+  box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--color-accent) 55%, var(--color-clear));
+  color: var(--color-accent);
+  font-size: var(--text-md);
+  font-weight: var(--weight-strong);
+  font-stretch: var(--stretch-heading);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.appeal-path li:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  top: 1.75em;
+  bottom: calc(-1 * var(--space-3));
+  left: calc(0.875em - 1px);
+  width: 2px;
+  background: color-mix(in oklch, var(--color-accent) 30%, var(--color-line));
+}
+
+.appeal-work {
+  min-width: 0;
+  margin-top: var(--space-6);
+}
+
+/* The handle field is one search bar, as on X: the @, the field and the button sit inside one pill. */
+.lookup-bar {
+  --bar-edge: var(--color-line-strong);
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  padding: var(--space-1) var(--space-1) var(--space-1) var(--space-5);
+  border: var(--rule) solid var(--bar-edge);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  font-size: 1.125rem;
+}
+
+.lookup-bar:hover {
+  --bar-edge: var(--color-text-muted);
+}
+
+/* Focus shows at once (no transition): a two pixel ring and the paper fill. */
+.lookup-bar:focus-within {
+  --bar-edge: var(--color-focus);
+  background: var(--color-bg);
+  box-shadow: 0 0 0 1px var(--bar-edge);
+}
+
+.lookup-bar:has([aria-invalid="true"]) {
+  --bar-edge: var(--color-danger);
+}
+
+.lookup-at {
+  color: var(--color-text-muted);
+  font-weight: var(--weight-medium);
+}
+
+.lookup-bar input {
+  min-width: 0;
+  padding: 0 var(--space-3) 0 0;
+  border: 0;
+  border-radius: 0;
+  background: var(--color-clear);
+  outline: none;
+  caret-color: var(--color-accent);
+  font-size: inherit;
+}
+
+.lookup .field-error {
+  margin-top: var(--space-2);
+  padding-left: var(--space-5);
+}
+
+.account {
+  margin-top: var(--space-4);
+  padding-top: var(--space-6);
+  border-top: var(--rule) solid var(--color-line);
+}
+
+/* A new result rises into place, one block after the other. The values stay in the DOM, so nothing waits on the motion. */
+.account > *,
+.appeal-form,
+.appeal-done {
+  animation: rise-in var(--dur-slow) var(--ease-out) backwards;
+}
+
+.account > :nth-child(2) {
+  animation-delay: 40ms;
+}
+
+.account > :nth-child(n + 3) {
+  animation-delay: 80ms;
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    translate: 0 8px;
+  }
+}
+
+.account-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+.account-handle {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--control-h);
+  font-size: clamp(var(--text-lg), 5.5vw, var(--text-xl));
+  font-weight: var(--weight-display);
+  font-stretch: var(--stretch-heading);
+  overflow-wrap: anywhere;
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 var(--space-3);
+  border: var(--rule) solid currentColor;
+  border-radius: var(--radius-pill);
+  background: color-mix(in oklch, currentColor 10%, var(--color-clear));
+  font-size: var(--text-sm);
+  font-weight: var(--weight-strong);
+}
+
+.status[data-status="confirmed"] { color: var(--color-accent); }
+.status[data-status="flagged"] { color: var(--color-warn); }
+.status[data-status="cleared"] { color: var(--color-ok); }
+.status[data-status="none"] { color: var(--color-text-muted); }
+
+/* The light warn color keeps 4.5:1 only on plain paper, so Flagged has no fill there. */
+@media (prefers-color-scheme: light) {
+  .status[data-status="flagged"] {
+    background: none;
+  }
+}
+
+.account-summary {
+  margin-top: var(--space-3);
+  max-width: 38em;
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3) var(--space-4);
+  margin-top: var(--space-5);
+}
+
+.facts dt {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.facts dd {
+  font-size: var(--text-xl);
+  font-weight: var(--weight-display);
+  font-stretch: var(--stretch-heading);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+.facts .signal-bar {
+  display: block;
+  max-width: 7.5rem;
+  margin-top: var(--space-2);
+}
+
+.signals {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-5);
+}
+
+.signal {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 3.5rem;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+  font-size: var(--text-sm);
+}
+
+.signal-bar {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-2);
+  overflow: hidden;
+}
+
+.signal-bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--color-accent);
+  transform-origin: left center;
+  animation: fill-in var(--dur-slow) var(--ease-out) 120ms backwards;
+}
+
+/* The bar grows from zero to its value. */
+@keyframes fill-in {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+.signal-value {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.sub-title {
+  margin-top: var(--space-6);
+  font-weight: var(--weight-strong);
+  font-stretch: var(--stretch-heading);
+}
+
+.evidence {
+  list-style: none;
+  margin-top: var(--space-2);
+}
+
+.evidence li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  padding-block: var(--space-3);
+  border-top: var(--rule) solid var(--color-line);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+/* A 44 px target; the negative margin keeps the row at its height. */
+.evidence a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--control-h);
+  margin-block: calc(-1 * var(--space-3));
+}
+
+.appeal-form {
+  display: grid;
+  margin-top: var(--space-8);
+  padding-top: var(--space-6);
+  border-top: var(--rule) solid var(--color-line);
+}
+
+.appeal-form .field-label {
+  margin-top: var(--space-4);
+}
+
+/* The fields of the form take the fill of the search bar. */
+.appeal-form textarea,
+.appeal-form input {
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.appeal-form textarea:focus,
+.appeal-form input:focus {
+  background: var(--color-bg);
+}
+
+.appeal-submit {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3) var(--space-4);
+  margin-top: var(--space-4);
+}
+
+.appeal-progress {
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.appeal-progress.is-error {
+  color: var(--color-danger);
+}
+
+.appeal-done {
+  margin-top: var(--space-8);
+  padding-top: var(--space-6);
+  border-top: var(--rule) solid var(--color-accent);
+}
+
+.code-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3) var(--space-4);
+  margin-top: var(--space-4);
+}
+
+.appeal-code {
+  color: var(--color-accent);
+  font-size: clamp(1.6rem, 1.2rem + 1.6vw, 2.4rem);
+  font-weight: var(--weight-display);
+  font-stretch: var(--stretch-display);
+  letter-spacing: 0.01em;
+  overflow-wrap: anywhere;
+}
+
+.done-steps {
+  margin-top: var(--space-4);
+  padding-left: 1.5em;
+}
+
+.done-steps li {
+  margin-top: var(--space-2);
+}
+
+.appeal-state {
+  margin-top: var(--space-4);
+  color: var(--color-text-muted);
+}
+
+/* Privacy */
+.privacy-sub {
+  margin-top: var(--space-6);
+}
+
+.plain-list {
+  list-style: none;
+  margin-top: var(--space-3);
+}
+
+.plain-list li {
+  position: relative;
+  padding: var(--space-3) 0 var(--space-3) var(--space-8);
+  border-top: var(--rule) solid var(--color-line);
+}
+
+.sent li::before {
+  content: "";
+  position: absolute;
+  left: var(--space-1);
+  top: calc(var(--space-3) + 0.5em);
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-text-muted);
+}
+
+.never li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: calc(var(--space-3) + 0.12em);
+  width: 18px;
+  height: 18px;
+  background: var(--color-accent);
+  mask: url("../../../brand/mark-mono.svg") center / contain no-repeat;
+}
+
+.privacy-page-note {
+  margin-top: var(--space-6);
+  color: var(--color-text-muted);
+}
+
+/* Questions */
+.faq-list {
+  margin-top: var(--space-4);
+  border-bottom: var(--rule) solid var(--color-line);
+}
+
+.faq-list details {
+  border-top: var(--rule) solid var(--color-line);
+}
+
+.faq-list summary {
+  font-size: var(--text-lg);
+}
+
+.faq-list details p {
+  padding-bottom: var(--space-5);
+}
+
+/* Footer: the last line of the thread. */
+.site-foot {
+  padding: var(--space-16) var(--space-4) var(--space-12);
+}
+
+.foot-meta {
+  display: grid;
+  gap: var(--space-2);
+  color: var(--color-text-muted);
+}
+
+.foot-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--space-5);
+}
+
+.foot-nav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--control-h);
+  color: var(--color-text);
+}
+
+/* In the landing band the footer is low: the links and the X Corp line. */
+.clean .site-foot {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-5) 0 var(--space-6);
+  border: 0;
+  border-top: var(--rule) solid var(--color-line);
+}
+
+.clean .foot-meta {
+  display: contents;
+}
+
+/* A phone shows the faces only: the handles do not fit around the mark. */
+@media (max-width: 700px) {
+  .has-scene .drain-accounts .drain-handle {
+    display: none;
+  }
+
+  .has-scene .drain-accounts .drain-account {
+    padding: 0;
+  }
+
+  .has-scene .drain-accounts .drain-avatar {
+    width: var(--control-h);
+    height: var(--control-h);
+  }
+}
+
+@media (min-width: 900px) {
+  .facts {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1000px) {
+  .river {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 40rem);
+    align-items: start;
+    gap: var(--space-16);
+  }
+
+  .river-head {
+    position: sticky;
+    top: calc(var(--strip-offset) + var(--space-6));
+  }
+}
+
+@media (min-width: 900px) {
+  /* The links sit above the X Corp line. */
+  .clean .foot-nav {
+    grid-row: 1;
+  }
+
+  .clean .foot-meta > p {
+    grid-row: 2;
+    font-size: var(--text-sm);
+  }
+}
+
+/* The five numbers fit one row from here. */
+@media (min-width: 760px) {
+  .pulse-row {
+    grid-template-columns: repeat(4, auto);
+    justify-content: start;
+    column-gap: 0;
+  }
+
+  .pulse-stat {
+    padding-right: var(--space-6);
+  }
+
+  .pulse-stat + .pulse-stat {
+    padding-left: var(--space-6);
+    border-left: var(--rule) solid var(--color-line);
+  }
+}
+
+@media (min-width: 1000px) {
+  .pulse {
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    column-gap: var(--space-8);
+  }
+
+  .pulse-row {
+    grid-column: 1;
+  }
+}
+
+/* The strip takes one line once the five numbers and both ends fit. From here it also sticks: a strip of two lines would cover the pinned scenes. */
+@media (min-width: 1400px) {
+  :root {
+    --strip-offset: var(--strip-h);
+  }
+
+  .strip {
+    flex-wrap: nowrap;
+    column-gap: var(--space-10);
+  }
+
+  .strip-pinned {
+    position: sticky;
+    top: 0;
+    z-index: var(--z-sticky);
+    min-height: var(--strip-h);
+    background: var(--glass);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+  }
+
+  .pulse {
+    order: 0;
+    flex: 1 1 0;
+    min-width: 0;
+    padding-block: 0;
+  }
+
+  .flood {
+    min-height: calc(100svh - 4.5rem);
+  }
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --poster: url("../../../brand/poster-light.webp");
+    --glass-blue: 3%;
+    --shadow-soft: 0 6px 18px oklch(0.21 0.015 250 / 0.12);
+  }
+}
+
+@media (scripting: none) {
+  /* These need a request to the API or a script, so without JS they do not show. */
+  .pulse,
+  .bridge-toggle,
+  .appeal-work {
+    display: none;
+  }
+
+  .flood::before {
+    content: "";
+    background-image: var(--poster);
+  }
+}

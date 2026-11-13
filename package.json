@@ -1,0 +1,15 @@
+{
+  "name": "xslop",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Hides AI reply slop on X: browser extension, scoring server and site.",
+  "license": "MIT",
+  "type": "module",
+  "engines": { "node": ">=24" },
+  "scripts": {
+    "ci:install": "npm ci --prefix server --include=dev --no-audit --no-fund && npm ci --prefix extension --include=dev --no-audit --no-fund && npm ci --prefix site --include=dev --no-audit --no-fund",
+    "build": "npm --prefix extension run build && npm --prefix site run build && npm --prefix server run build",
+    "test": "npm --prefix server test && npm --prefix extension test && npm --prefix site test",
+    "test:e2e": "npm --prefix extension run test:e2e && npm --prefix site run test:e2e"
+  }
+}

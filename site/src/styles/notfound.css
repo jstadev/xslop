@@ -1,0 +1,53 @@
+/* 404 page: the missing page is shown as one more collapsed line. */
+@import "./base.css";
+
+.nf-head {
+  padding-block: var(--space-5);
+}
+
+.nf-brand {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--control-h);
+}
+
+.nf {
+  padding-block: var(--space-16) var(--space-24);
+}
+
+.nf-line {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: 34rem;
+  min-height: 48px;
+  padding-block: var(--space-2);
+  border-block: var(--rule) solid var(--color-line);
+  color: var(--color-text-muted);
+}
+
+.nf-line strong {
+  color: var(--color-text);
+}
+
+.nf-title {
+  margin-top: var(--space-10);
+  font-size: var(--text-display);
+  font-weight: var(--weight-display);
+  font-stretch: var(--stretch-display);
+  line-height: 0.98;
+  letter-spacing: var(--tracking-display);
+}
+
+.nf-text {
+  max-width: 32em;
+  margin-top: var(--space-5);
+  font-size: var(--text-lg);
+}
+
+.nf-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-top: var(--space-8);
+}

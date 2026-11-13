@@ -1,0 +1,34 @@
+{
+  "name": "xslop-extension",
+  "private": true,
+  "version": "1.2.0",
+  "type": "module",
+  "description": "xslop browser extension for Chrome, Firefox and Safari (MV3).",
+  "license": "MIT",
+  "author": "xslop contributors",
+  "homepage": "https://x-slop.com",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jstadev/xslop.git",
+    "directory": "extension"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "node build.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "npm run typecheck && vitest run",
+    "test:e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.64.1",
+    "@types/chrome": "0.3.7",
+    "@types/node": "24.19.2",
+    "esbuild": "0.28.2",
+    "fflate": "0.8.3",
+    "happy-dom": "21.0.4",
+    "typescript": "7.0.2",
+    "vitest": "5.1.0"
+  }
+}

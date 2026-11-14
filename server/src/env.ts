@@ -19,6 +19,15 @@ export interface AppConfig {
    * `totp` is the key of XSLOP_ADMIN_TOTP; when it is set, a login also needs the current code.
    */
   admin: { user: string; hash: ScryptHash; totp?: Buffer | null } | null;
+  /** The store listings that `/downloads/latest.json` names (section 5.7). */
+  stores: StoreUrls;
+  /** Optional variables with a bad value. The app runs without them and logs one warning for each at start. */
+  ignored: string[];
+}
+
+export interface StoreUrls {
+  chromeStoreUrl: string | null;
+  firefoxUrl: string | null;
 }
 
 export class EnvError extends Error {}
@@ -41,6 +50,26 @@ export function loadPort(env: Env = process.env): number {
   const port = Number(env.PORT ?? '3995');
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new EnvError('PORT must be 1..65535');
   return port;
+}
+
+/** A listing URL exactly as the store writes it. The slug has no dot, so no path segment can climb. */
+const STORE_LISTINGS = [
+  ['XSLOP_CHROME_STORE_URL', 'chromeStoreUrl', /^https:\/\/chromewebstore\.google\.com\/detail\/[A-Za-z0-9%_-]{1,128}\/[a-p]{32}$/],
+  ['XSLOP_FIREFOX_STORE_URL', 'firefoxUrl', /^https:\/\/addons\.mozilla\.org\/(?:[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})?\/)?firefox\/addon\/[A-Za-z0-9%_-]{1,128}\/?$/],
+] as const;
+
+/** An unset store URL is left out. A bad one is left out too and named in `ignored`: a store link never stops the server. */
+function loadStores(env: Env): { stores: StoreUrls; ignored: string[] } {
+  const stores: StoreUrls = { chromeStoreUrl: null, firefoxUrl: null };
+  const ignored: string[] = [];
+  for (const [name, field, pattern] of STORE_LISTINGS) {
+    const v = env[name];
+    if (!v) continue;
+    // The URL parser must keep every character: it resolves a %2e segment, which the pattern cannot see.
+    if (pattern.test(v) && URL.parse(v)?.href === v) stores[field] = v;
+    else ignored.push(name);
+  }
+  return { stores, ignored };
 }
 
 export function loadAppConfig(env: Env = process.env): AppConfig {
@@ -78,5 +107,6 @@ export function loadAppConfig(env: Env = process.env): AppConfig {
     staticRoot: env.XSLOP_STATIC_ROOT || releaseRoot,
     configFile: extensionConfigFile,
     admin,
+    ...loadStores(env),
   };
 }

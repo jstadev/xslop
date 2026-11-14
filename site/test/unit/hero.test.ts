@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 import { cameraPose, cameraPoses } from '../../src/hero/camera.ts';
 import { FIELD_LENGTH, NEAR_Z, buildCards, cardDepth, seededRandom } from '../../src/hero/cards.ts';
-import { detectBrowser, isSoftwareRenderer } from '../../src/hero/detect.ts';
+import { detectBrowser, installsFromChromeStore, isSoftwareRenderer } from '../../src/hero/detect.ts';
 import { encodeField } from '../../src/hero/field.ts';
 import { PEOPLE, SLOP } from '../../src/hero/replies.ts';
 import { bridgeStep, drainPlacement } from '../../src/hero/story-page.ts';
@@ -346,6 +346,16 @@ describe('browser detection', () => {
   for (const [name, signals, expected] of cases) {
     test(name, () => assert.equal(detectBrowser(signals), expected));
   }
+});
+
+describe('the Chrome Web Store', () => {
+  test('Chrome, Brave, Vivaldi and Arc install from it; Edge, Opera, Firefox, Safari and phones do not', () => {
+    const ids = ['chrome', 'edge', 'brave', 'opera', 'vivaldi', 'arc', 'firefox', 'firefox-android', 'safari', 'phone-other', 'unknown'] as const;
+    assert.deepEqual(
+      ids.filter((id) => installsFromChromeStore(id)),
+      ['chrome', 'brave', 'vivaldi', 'arc'],
+    );
+  });
 });
 
 describe('renderer names', () => {

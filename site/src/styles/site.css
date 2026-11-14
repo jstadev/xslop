@@ -17,6 +17,22 @@
   --glass: color-mix(in oklch, color-mix(in oklch, var(--color-accent) var(--glass-blue), var(--color-surface)) 64%, transparent);
   --glass-blur: blur(18px) saturate(1.4);
   --shadow-soft: 0 6px 18px oklch(0 0 0 / 0.32);
+  /* Pin 331: the step boxes float on three drop layers (contact, fade, top light) over a soft inner shadow. */
+  --shadow-step:
+    0 1px 2px oklch(0 0 0 / 0.24),
+    0 12px 28px -8px oklch(0 0 0 / 0.5),
+    0 28px 64px -18px oklch(0 0 0 / 0.45),
+    inset 0 1px 0 oklch(1 0 0 / 0.08),
+    inset 0 2px 16px oklch(0 0 0 / 0.32);
+  /* The bright point of the light that runs round the thread switch. Near white on black; on white paper the accent. */
+  --glint: oklch(0.97 0.03 250);
+  /* A reply from a person while xslop is on: a brighter fill, a soft glowing border and a soft glow. */
+  --glow-fill: color-mix(in oklch, white 9%, transparent);
+  --glow-shadow:
+    inset 0 0 0 1px color-mix(in oklch, white 26%, transparent),
+    inset 0 0 24px color-mix(in oklch, white 7%, transparent),
+    0 0 6px color-mix(in oklch, white 22%, transparent),
+    0 0 26.4px color-mix(in oklch, white 13.2%, transparent);
   --strip-h: 4rem;
   --strip-offset: 0px;
 }
@@ -68,10 +84,12 @@ main {
   text-decoration: none;
 }
 
+/* The fill states the colour that the symbols draw with, so a contrast check reads the real colour of each part. */
 .brand-logo {
   flex: none;
   width: 93px;
   height: 32px;
+  fill: currentColor;
 }
 
 .strip-nav {
@@ -129,7 +147,8 @@ main {
   color: var(--color-accent);
 }
 
-.strip-install {
+.strip-install,
+.drain-install {
   box-shadow:
     0 0 0 1px color-mix(in oklch, var(--color-accent) 55%, transparent),
     0 4px 18px color-mix(in oklch, var(--color-accent-fill) 55%, transparent);
@@ -139,7 +158,8 @@ main {
     transform var(--dur-fast) var(--ease-out);
 }
 
-.strip-install:hover:not(:disabled) {
+.strip-install:hover:not(:disabled),
+.drain-install:hover:not(:disabled) {
   box-shadow:
     0 0 0 1px var(--color-accent),
     0 6px 26px color-mix(in oklch, var(--color-accent-fill) 80%, transparent);
@@ -147,11 +167,13 @@ main {
 
 @media (hover: hover) and (prefers-reduced-motion: no-preference) {
   .strip-link:hover,
-  .strip-install:hover {
+  .strip-install:hover,
+  .drain-install:hover {
     transform: translateY(-1px);
   }
 
-  .strip-install:hover .strip-icon {
+  .strip-install:hover .strip-icon,
+  .drain-install:hover .strip-icon {
     animation: strip-drop 600ms var(--ease-out);
   }
 }
@@ -267,7 +289,7 @@ main {
 .column,
 .bridge-account,
 .bridge-toggle,
-.drain-link .btn {
+.drain-link .btn-quiet {
   border: var(--rule) solid var(--edge-soft);
   background: var(--glass);
   -webkit-backdrop-filter: var(--glass-blur);
@@ -306,7 +328,7 @@ main {
 .flood-inner {
   display: grid;
   justify-items: center;
-  gap: var(--space-5);
+  gap: var(--space-4);
   width: min(100%, 76rem);
 }
 
@@ -341,7 +363,7 @@ main {
 }
 
 .swap-word.is-swapped {
-  color: transparent;
+  color: var(--color-clear);
 }
 
 .swap-canvas {
@@ -364,14 +386,16 @@ main {
   line-height: var(--leading-snug);
 }
 
-/* The intro: three short steps, each in its own pane of glass with a soft inner shadow. */
+/* The intro: three short steps, each in its own pane of glass with a soft inner shadow. The space above it
+ * separates the steps from the headline group; it shrinks on a low screen, so the switch stays in the first screen. */
 .flood-lead {
   display: grid;
   gap: var(--space-3);
   width: min(100%, 60rem);
-  margin: 0;
+  margin: clamp(var(--space-2), 3svh, var(--space-6)) 0 clamp(var(--space-1), 1svh, var(--space-2));
   padding: 0;
   list-style: none;
+  counter-reset: flood-step;
 }
 
 @media (min-width: 48.0625rem) {
@@ -381,35 +405,73 @@ main {
 }
 
 .flood-step {
-  padding: var(--space-4) var(--space-5);
+  position: relative;
+  padding: var(--space-5);
   border-radius: var(--radius-card);
+  counter-increment: flood-step;
   color: var(--color-text);
   font-size: var(--text-md);
   line-height: 1.45;
   text-align: left;
-  /* A soft drop shadow in three layers lifts each step off the scene: a close contact shadow, a wide fade and a faint top light. */
-  box-shadow:
-    0 1px 2px oklch(0 0 0 / 0.24),
-    0 12px 28px -8px oklch(0 0 0 / 0.5),
-    0 28px 64px -18px oklch(0 0 0 / 0.45),
-    inset 0 1px 0 oklch(1 0 0 / 0.08),
-    inset 0 2px 16px oklch(0 0 0 / 0.32);
-}
-
-:root[data-theme="light"] .flood-step {
-  box-shadow:
-    0 1px 3px oklch(0.21 0.015 250 / 0.12),
-    0 14px 30px -8px oklch(0.21 0.015 250 / 0.24),
-    0 30px 64px -18px oklch(0.21 0.015 250 / 0.22),
-    inset 0 1px 0 oklch(1 0 0 / 0.6),
-    inset 0 2px 14px oklch(0 0 0 / 0.08);
+  box-shadow: var(--shadow-step);
 }
 
 .flood-step-title {
-  display: block;
-  margin-bottom: var(--space-1);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-2);
+  font-size: var(--text-lg);
   font-weight: var(--weight-strong);
   font-stretch: var(--stretch-heading);
+  line-height: var(--leading-snug);
+}
+
+/* The number of the step: an accent disc, like the dots of the appeal path. A screen reader hears the list number once. */
+.flood-step-title::before {
+  content: counter(flood-step);
+  content: counter(flood-step) / "";
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 50%;
+  background: color-mix(in oklch, var(--color-accent) 16%, var(--color-clear));
+  box-shadow: inset 0 0 0 1px var(--edge-soft);
+  color: var(--color-accent);
+  font-size: var(--text-sm);
+  font-stretch: var(--stretch-heading);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+/* The official badge of the Chrome Web Store, unchanged: the bordered one on dark paper, the plain one on white paper. */
+.store-badge {
+  display: block;
+  flex: none;
+  width: 170px;
+  height: 48px;
+  border-radius: var(--radius-sm);
+  background: url("../img/chrome-web-store-border.png") center / contain no-repeat;
+}
+
+:root[data-theme="light"] .store-badge {
+  background-image: url("../img/chrome-web-store.png");
+}
+
+/* In the Install step the badge sits in the free space at the foot of the box, out of the flow, so its arrival moves
+ * nothing. Side by side the Hide step sets the height of the row and leaves that space. Stacked, there is none. */
+.flood-step .store-badge {
+  position: absolute;
+  bottom: var(--space-5);
+  left: var(--space-5);
+}
+
+@media (max-width: 48rem) {
+  .flood-step .store-badge {
+    display: none;
+  }
 }
 
 /* The xslop button as the extension draws it on x.com: the mark in its blue circle, where the text says "Hit the". */
@@ -555,6 +617,14 @@ main {
   list-style: disc;
 }
 
+.river-text li + li {
+  margin-top: var(--space-1);
+}
+
+.river-text li::marker {
+  color: var(--color-accent);
+}
+
 /* The demo switch stands in the centre of the head card under its title. */
 .river-control {
   display: grid;
@@ -568,16 +638,7 @@ main {
   font-size: var(--text-xl);
 }
 
-/* A light runs round the capsule edge, with a soft glow under it. Reduced motion keeps it still.
- * Its bright point is near white on black. On white paper a white point looks like a gap, so the light theme uses the accent. */
-.river-control {
-  --glint: oklch(0.97 0.03 250);
-}
-
-:root[data-theme="light"] .river-control {
-  --glint: var(--color-accent);
-}
-
+/* A light runs round the capsule edge, with a soft glow under it. Its bright point is --glint: on white paper a white point looks like a gap. */
 @property --xs-glow-angle {
   syntax: "<angle>";
   inherits: false;
@@ -587,7 +648,7 @@ main {
 .river-control .xs-switch {
   position: relative;
   isolation: isolate;
-  border-color: transparent;
+  border-color: var(--color-clear);
 }
 
 .river-control .xs-switch::before,
@@ -836,21 +897,8 @@ main {
 /* While xslop is on, the replies from people that stay open shine: a brighter fill, a soft glowing border and a soft glow. */
 .is-clean .reply:has(> .hidden-bar[hidden]) .rcard {
   z-index: 1;
-  background: color-mix(in oklch, white 9%, transparent);
-  box-shadow:
-    inset 0 0 0 1px color-mix(in oklch, white 26%, transparent),
-    inset 0 0 24px color-mix(in oklch, white 7%, transparent),
-    0 0 6px color-mix(in oklch, white 22%, transparent),
-    0 0 26.4px color-mix(in oklch, white 13.2%, transparent);
-}
-
-:root[data-theme="light"] .is-clean .reply:has(> .hidden-bar[hidden]) .rcard {
-  background: color-mix(in oklch, white 70%, transparent);
-  box-shadow:
-    inset 0 0 0 1px color-mix(in oklch, var(--color-accent) 28%, transparent),
-    inset 0 0 24px color-mix(in oklch, white 80%, transparent),
-    0 0 6px color-mix(in oklch, var(--color-accent) 22%, transparent),
-    0 0 19.8px color-mix(in oklch, var(--color-accent) 15.4%, transparent);
+  background: var(--glow-fill);
+  box-shadow: var(--glow-shadow);
 }
 
 .bar-label {
@@ -1275,7 +1323,25 @@ main {
   will-change: transform, opacity;
 }
 
-/* The ring of accounts covers the whole pin. The button stays on top of it, and stays clickable. */
+/* The two actions of the last act: install, then the list. They wrap to two lines on a phone. */
+.drain-link {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-3);
+}
+
+/* The last screen of the dark theme is blue, and an accent fill disappears on it. There the install button is white, like the post button of X. */
+:root:not([data-theme="light"]) .drain-install {
+  background: var(--color-text);
+  color: var(--color-bg);
+}
+
+:root:not([data-theme="light"]) .drain-install:hover:not(:disabled) {
+  background: var(--color-accent-ink);
+}
+
+/* The ring of accounts covers the whole pin. The buttons stay on top of it, and stay clickable. */
 .has-scene .drain-link {
   position: relative;
   z-index: var(--z-raised);
@@ -1509,6 +1575,7 @@ main {
   padding-top: var(--space-4);
   border-top: var(--rule) solid var(--color-line);
   color: var(--color-text-muted);
+  overflow-wrap: anywhere;
 }
 
 /* Install */
@@ -2202,6 +2269,19 @@ details[open] > summary .toggle::before {
   --poster: url("../../../brand/poster-light.webp");
   --glass-blue: 3%;
   --shadow-soft: 0 6px 18px oklch(0.21 0.015 250 / 0.12);
+  --shadow-step:
+    0 1px 3px oklch(0.21 0.015 250 / 0.12),
+    0 14px 30px -8px oklch(0.21 0.015 250 / 0.24),
+    0 30px 64px -18px oklch(0.21 0.015 250 / 0.22),
+    inset 0 1px 0 oklch(1 0 0 / 0.6),
+    inset 0 2px 14px oklch(0 0 0 / 0.08);
+  --glint: var(--color-accent);
+  --glow-fill: color-mix(in oklch, white 70%, transparent);
+  --glow-shadow:
+    inset 0 0 0 1px color-mix(in oklch, var(--color-accent) 28%, transparent),
+    inset 0 0 24px color-mix(in oklch, white 80%, transparent),
+    0 0 6px color-mix(in oklch, var(--color-accent) 22%, transparent),
+    0 0 19.8px color-mix(in oklch, var(--color-accent) 15.4%, transparent);
 }
 
 @media (scripting: none) {

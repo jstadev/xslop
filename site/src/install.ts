@@ -1,7 +1,7 @@
 // Install section. It names the visitor's browser, shows that browser's package and steps, and lists the others below.
 // Packages come from GET /downloads/latest.json. Store buttons appear only when latest.json names a store URL.
 
-import { detectBrowser, readBrowserSignals, type BrowserId } from './hero/detect.ts';
+import { detectBrowser, installsFromChromeStore, readBrowserSignals, type BrowserId } from './hero/detect.ts';
 import { request } from './lib/api.ts';
 import { bindCopy, h, req } from './lib/dom.ts';
 import { formatBytes } from './lib/format.ts';
@@ -33,8 +33,9 @@ const GUIDES: Record<Exclude<BrowserId, 'unknown'>, Guide> = {
 
 const OTHERS: readonly (keyof typeof GUIDES)[] = ['chrome', 'edge', 'brave', 'opera', 'vivaldi', 'arc', 'firefox', 'firefox-android', 'safari'];
 
-function zipLink(d: Download, label: string): HTMLAnchorElement {
-  return h('a', { class: 'btn btn-primary', href: `/downloads/${d.file}`, download: d.file }, label);
+/** The zip button. It is quiet when a store button above it is the first way. */
+function zipLink(d: Download, label: string, kind: 'btn-primary' | 'btn-quiet' = 'btn-primary'): HTMLAnchorElement {
+  return h('a', { class: `btn ${kind}`, href: `/downloads/${d.file}`, download: d.file }, label);
 }
 
 function zipMeta(d: Download): HTMLElement {
@@ -45,6 +46,11 @@ function zipMeta(d: Download): HTMLElement {
 
 function storeLink(href: string, label: string): HTMLAnchorElement {
   return h('a', { class: 'btn btn-primary', href, rel: 'noopener noreferrer' }, label);
+}
+
+/** The official badge of the Chrome Web Store, unchanged (developer.chrome.com/docs/webstore/branding). It always links to the listing. */
+function chromeStoreBadge(href: string): HTMLAnchorElement {
+  return h('a', { class: 'store-badge', href, rel: 'noopener noreferrer', 'aria-label': 'Available in the Chrome Web Store' });
 }
 
 function note(text: string): HTMLElement {
@@ -64,13 +70,18 @@ function pageAddress(address: string): Inline {
   return [h('code', null, address), ' ', copy];
 }
 
-function chromiumBody(guide: Guide, latest: Latest): Node[] {
+function chromiumBody(id: keyof typeof GUIDES, guide: Guide, latest: Latest): Node[] {
   const zip = latest.chrome;
   const parts: Node[] = [];
-  if (latest.chromeStoreUrl && guide.name === 'Chrome') parts.push(h('div', { class: 'install-actions' }, storeLink(latest.chromeStoreUrl, 'Get it from the Chrome Web Store')));
+  // The store first. The zip stays below it as the second way.
+  const store = latest.chromeStoreUrl && installsFromChromeStore(id) ? latest.chromeStoreUrl : null;
+  if (store) {
+    parts.push(h('div', { class: 'install-actions' }, chromeStoreBadge(store)));
+    if (zip) parts.push(h('p', { class: 'sub-title' }, 'Or install the zip yourself'));
+  }
   if (!zip) return [...parts, note('The zip is not available right now. Try again later.')];
   parts.push(
-    h('div', { class: 'install-actions' }, zipLink(zip, `Download the zip for ${guide.name}`), zipMeta(zip)),
+    h('div', { class: 'install-actions' }, zipLink(zip, `Download the zip for ${guide.name}`, store ? 'btn-quiet' : 'btn-primary'), zipMeta(zip)),
     steps(
       'Unzip the file into a folder that you keep.',
       ['Type this into the address bar: ', ...pageAddress(guide.extensionsPage ?? '')],
@@ -131,7 +142,7 @@ function safariBody(latest: Latest): Node[] {
 function guideBody(id: keyof typeof GUIDES, latest: Latest): Node[] {
   const guide = GUIDES[id];
   if (id === 'firefox-android') return firefoxAndroidBody(latest);
-  if (guide.package === 'chrome') return chromiumBody(guide, latest);
+  if (guide.package === 'chrome') return chromiumBody(id, guide, latest);
   if (guide.package === 'firefox') return firefoxBody(guide, latest);
   if (guide.package === 'safari') return safariBody(latest);
   return [note('This browser cannot load extensions. Install xslop on a computer and turn on mute sync, so the X app on your phone hides the accounts too.')];

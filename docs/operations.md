@@ -32,6 +32,11 @@ Each channel has its own units (`xslop-web`, the timers `xslop-score` every 5 mi
 - Set `XSLOP_ADMIN_TOTP` (a base32 secret) in both channel env files. Without it, the admin password alone opens a session.
 - After a change of `XSLOP_ADMIN_HASH` or `XSLOP_ADMIN_TOTP`, run `delete from admin_sessions` in that schema. Sessions do not depend on either value.
 
+## Store listings
+
+- When a store lists xslop, put its listing URL into `XSLOP_CHROME_STORE_URL` or `XSLOP_FIREFOX_STORE_URL` in both channel env files and restart `xslop-web`. The server reads them at start. Then `/downloads/latest.json` names the listing, and the pages show the store button within 5 minutes (the cache time of that file).
+- If the log of `xslop-web` shows `ignored a bad optional variable`, the value is not a listing URL (section 5.7 of `SPEC.md`). The page then keeps the zip path.
+
 ## Tests on the host
 
 - Real Postgres: `set -a; . /etc/xslop/test.env; set +a; npm --prefix server test`. Run it alone: two runs on `xslop_test` at once fail with a statement timeout.

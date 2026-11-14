@@ -15,14 +15,14 @@
   --sl-row-h: 4.25rem;
   --sl-glow: color-mix(in oklch, var(--color-accent-fill) 60%, var(--color-clear));
   --sl-drained: grayscale(1) brightness(0.66);
+  --sl-wall: brightness(0.63);
   scroll-padding-top: calc(var(--sl-bar-h) + var(--space-2));
 }
 
-@media (prefers-color-scheme: light) {
-  :root {
-    --sl-glow: color-mix(in oklch, var(--color-accent-fill) 28%, var(--color-clear));
-    --sl-drained: grayscale(1) contrast(0.82) brightness(1.08);
-  }
+:root[data-theme="light"] {
+  --sl-glow: color-mix(in oklch, var(--color-accent-fill) 28%, var(--color-clear));
+  --sl-drained: grayscale(1) contrast(0.82) brightness(1.08);
+  --sl-wall: opacity(0.55);
 }
 
 /* Screen-reader heading. A real width lets a long translation wrap, so it cannot widen the page. */
@@ -157,9 +157,9 @@
   object-fit: cover;
 }
 
-/* The faces on the wall are darker than the drained faces of the list: 0.9 and then 30% darker again. */
+/* The faces on the wall are quieter than the drained faces of the list. Dark: 0.9 and then 30% darker again. Light: they fade into the paper. */
 .sl-tile {
-  filter: var(--sl-drained) brightness(0.63);
+  filter: var(--sl-drained) var(--sl-wall);
   animation: sl-drain 1000ms var(--ease-out) var(--sl-delay, 0ms) backwards;
 }
 
@@ -204,8 +204,8 @@
   }
 }
 
-/* Below 360 px the page name needs the whole row, so the date drops to a right-aligned line of its own. */
-@media (max-width: 22.49rem) {
+/* Below 404 px the page name, the theme switch and Install need the whole row, so the date drops to a right-aligned line of its own. */
+@media (max-width: 25.24rem) {
   .sl-bar {
     flex-wrap: wrap;
     row-gap: 0;
@@ -1381,7 +1381,9 @@
     margin-inline: 0;
   }
 
+  /* The rail takes the mark, the theme switch and Install from the title bar. */
   .sl-bar-home,
+  .sl-bar .theme-toggle,
   .sl-bar-install,
   .sl-foot-nav {
     display: none;

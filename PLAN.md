@@ -16,6 +16,7 @@ Goal: Hide AI reply slop on X for every user, from a crowd-confirmed list, with 
 - Open source: the repository goes public, after the maintainer's checklist of the open source review (source: the maintainer's order of 2026-11-11)
 - A separate Unix user for staging and prod in the deploy tool (SPEC 12.13, known and open) (source: maintainer notes)
 ## Done
+- Unreleased (2026-11-13, staging next): a dark and light switch on every landing page; dark is the default with a black page, light only by the visitor's choice (SPEC 12.11c) (source: the maintainer's order, 2026-11-13).
 - v1.0.122 (2026-11-12, staging): the new logo, a bubble with three drips and the drip lettering, in every place.
 - v1.0.99 (2026-11-12, staging): round 3: security fixes in server, extension and site; phones; a vote carries no text; the seed list without bios; the repository written for a public reader; the scene runs in every browser with WebGL2.
 - v1.0.13 (2026-11-10, staging): security round (SPEC 12.12): code audit of server, extension and site; attack audit of the list rules; live-system test.

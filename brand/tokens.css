@@ -1,6 +1,8 @@
 /* xslop design tokens.
  * Shared by the landing page, the admin console and the extension popup.
- * Dark ("lights out") is the default; light follows the system setting.
+ * Dark ("lights out") is the default. The landing pages set data-theme on <html> (site/public/theme.js and the
+ * switch in site/src/theme.ts), so only the visitor's choice turns them light. A page without data-theme (the
+ * extension popup, the admin console) follows the system setting.
  * One accent: xslop blue, hue 265 in OKLCH (cobalt). X's own blue #1d9bf0 sits at hue 246 and reads sky blue,
  * so xslop never looks like part of X. All ratios are WCAG 2, measured on the sRGB values below.
  *   Brand        oklch(0.575 0.23 265)  #3368fe  interface accent: 4.55:1 on black, 4.61:1 on white.
@@ -98,6 +100,29 @@
   --shadow-2: 0 8px 24px oklch(0 0 0 / 0.6), 0 0 0 1px var(--color-line-strong);
 }
 
+/* Light theme: the visitor's choice on a landing page. Keep both blocks the same. */
+:root[data-theme="light"] {
+  color-scheme: light;
+  --color-bg: oklch(1 0 0);
+  --color-surface: oklch(0.97 0.003 250);
+  --color-surface-2: oklch(0.94 0.004 250);
+  --color-line: oklch(0.92 0.005 250);
+  --color-line-strong: oklch(0.8 0.008 250);
+  --color-text: oklch(0.21 0.015 250);
+  --color-text-muted: oklch(0.5 0.02 250);
+  --color-accent: oklch(0.52 0.25 265);
+  --color-accent-fill: oklch(0.52 0.25 265);
+  --color-accent-fill-hover: oklch(0.46 0.22 265);
+  --color-focus: oklch(0.52 0.25 265);
+  --color-danger: oklch(0.52 0.2 27);
+  --color-ok: oklch(0.5 0.13 155);
+  --color-warn: oklch(0.55 0.12 75);
+  --shadow-1: 0 0 0 1px var(--color-line);
+  --shadow-2: 0 8px 24px oklch(0.21 0.015 250 / 0.12), 0 0 0 1px var(--color-line);
+}
+
+/* Light theme for a page without data-theme (the system setting). A landing page has data-theme="dark" until the
+ * visitor switches, and the second block keeps it dark. Keep each block the same as its twin above. */
 @media (prefers-color-scheme: light) {
   :root {
     color-scheme: light;
@@ -118,5 +143,24 @@
     --shadow-1: 0 0 0 1px var(--color-line);
     --shadow-2: 0 8px 24px oklch(0.21 0.015 250 / 0.12), 0 0 0 1px var(--color-line);
   }
-}
 
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --color-bg: oklch(0 0 0);
+    --color-surface: oklch(0.19 0.006 250);
+    --color-surface-2: oklch(0.235 0.007 250);
+    --color-line: oklch(0.3 0.008 250);
+    --color-line-strong: oklch(0.42 0.01 250);
+    --color-text: oklch(0.94 0.004 250);
+    --color-text-muted: oklch(0.66 0.01 250);
+    --color-accent: oklch(0.7 0.155 265);
+    --color-accent-fill: var(--xs-brand);
+    --color-accent-fill-hover: oklch(0.52 0.215 265);
+    --color-focus: oklch(0.7 0.155 265);
+    --color-danger: oklch(0.72 0.17 25);
+    --color-ok: oklch(0.78 0.16 155);
+    --color-warn: oklch(0.86 0.15 85);
+    --shadow-1: 0 0 0 1px var(--color-line);
+    --shadow-2: 0 8px 24px oklch(0 0 0 / 0.6), 0 0 0 1px var(--color-line-strong);
+  }
+}

@@ -48,3 +48,33 @@ export async function open(browser: Browser, url: string, options: BrowserContex
 export async function horizontalOverflow(page: Page): Promise<number> {
   return page.evaluate(() => Math.max(document.documentElement.scrollWidth, document.body.scrollWidth) - window.innerWidth);
 }
+
+/** A visitor who chose `theme` before: the choice is in localStorage, and the system setting is the other theme, so only the choice can decide. */
+export function chosenTheme(url: string, theme: 'dark' | 'light'): BrowserContextOptions {
+  return {
+    colorScheme: theme === 'dark' ? 'light' : 'dark',
+    storageState: { cookies: [], origins: [{ origin: new URL(url).origin, localStorage: [{ name: 'xslop-theme', value: theme }] }] },
+  };
+}
+
+// Software WebGL, the renderer that exists on a server without a GPU. The scene needs a real context.
+export const WEBGL_ARGS = ['--use-angle=swiftshader', '--use-gl=angle', '--enable-webgl', '--ignore-gpu-blocklist', '--enable-unsafe-swiftshader'];
+
+/** How many colours the GL canvas itself holds. A screenshot cannot tell: it also shows the page over the canvas. Read in a frame callback, after the scene drew and before the browser clears the buffer. */
+export function sceneColours(page: Page): Promise<number> {
+  return page.evaluate(
+    () =>
+      new Promise<number>((resolve) => {
+        requestAnimationFrame(() => {
+          const copy = document.createElement('canvas');
+          copy.width = copy.height = 64;
+          const ctx = copy.getContext('2d')!;
+          ctx.drawImage(document.querySelector<HTMLCanvasElement>('.scene-canvas')!, 0, 0, 64, 64);
+          const data = ctx.getImageData(0, 0, 64, 64).data;
+          const colours = new Set<number>();
+          for (let i = 0; i < data.length; i += 4) colours.add((data[i]! << 16) | (data[i + 1]! << 8) | data[i + 2]!);
+          resolve(colours.size);
+        });
+      }),
+  );
+}

@@ -7,12 +7,9 @@ import { join } from 'node:path';
 import { after, before, describe, test } from 'node:test';
 import { gzipSync } from 'node:zlib';
 import { chromium, webkit, type Browser, type BrowserContextOptions } from 'playwright';
-import { DIST, horizontalOverflow, open, serve, type Watched } from './helpers.ts';
+import { chosenTheme, DIST, horizontalOverflow, open, sceneColours, serve, WEBGL_ARGS, type Watched } from './helpers.ts';
 
 const CHROME_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36';
-
-// Software WebGL, the renderer that exists on a server without a GPU. The scene needs a real context.
-const WEBGL_ARGS = ['--use-angle=swiftshader', '--use-gl=angle', '--enable-webgl', '--ignore-gpu-blocklist', '--enable-unsafe-swiftshader'];
 
 // The page starts a GL on the CPU at its lowest resolution. Only the name that this GL reports changes; the GL stays real.
 const REPORT_GPU = `{
@@ -90,25 +87,6 @@ const hasScene = (page: Watched['page']): Promise<boolean> => page.evaluate(() =
 const wentStatic = (page: Watched['page']): Promise<boolean> => page.evaluate(() => document.documentElement.dataset.wentStatic === 'true');
 const canvasWidth = (page: Watched['page']): Promise<number> => page.locator('.scene-canvas').evaluate((canvas: HTMLCanvasElement) => canvas.width);
 
-/** How many colours the GL canvas itself holds. A screenshot cannot tell: it also shows the page over the canvas. Read in a frame callback, after the scene drew and before the browser clears the buffer. */
-function sceneColours(page: Watched['page']): Promise<number> {
-  return page.evaluate(
-    () =>
-      new Promise<number>((resolve) => {
-        requestAnimationFrame(() => {
-          const copy = document.createElement('canvas');
-          copy.width = copy.height = 64;
-          const ctx = copy.getContext('2d')!;
-          ctx.drawImage(document.querySelector<HTMLCanvasElement>('.scene-canvas')!, 0, 0, 64, 64);
-          const data = ctx.getImageData(0, 0, 64, 64).data;
-          const colours = new Set<number>();
-          for (let i = 0; i < data.length; i += 4) colours.add((data[i]! << 16) | (data[i + 1]! << 8) | data[i + 2]!);
-          resolve(colours.size);
-        });
-      }),
-  );
-}
-
 /** Scrolls from the end of the bridge into the drain act, 8 px per frame, and returns the largest move of the picture between two frames, as a share of
  * the screen height. The place of the picture is the centre of its light on the GL canvas, on the dark page. */
 function largestPictureStep(page: Watched['page']): Promise<number> {
@@ -178,11 +156,12 @@ function statementWords(page: Watched['page']): Promise<{ x: number; y: number; 
 
 describe('layout', () => {
   for (const width of [375, 1440]) {
-    for (const colorScheme of ['dark', 'light'] as const) {
-      test(`${width} px ${colorScheme}: no horizontal scroll, no console errors, no outside requests`, async () => {
+    for (const theme of ['dark', 'light'] as const) {
+      test(`${width} px ${theme}: no horizontal scroll, no console errors, no outside requests`, async () => {
         const server = await serve();
         try {
-          const { page, errors, outside } = await open(browser, `${server.url}/`, { viewport: { width, height: 900 }, colorScheme });
+          const { page, errors, outside } = await open(browser, `${server.url}/`, { viewport: { width, height: 900 }, ...chosenTheme(server.url, theme) });
+          assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), theme, 'the saved choice decides, not the system');
           await page.locator('#stats dd[data-stat="confirmed"]').filter({ hasText: '812' }).waitFor();
           await walkPage(page);
           assert.equal(await horizontalOverflow(page), 0, 'page must not scroll sideways');
@@ -623,12 +602,13 @@ describe('download', () => {
 
 describe('the scene', () => {
   for (const width of [375, 1440]) {
-    for (const colorScheme of ['dark', 'light'] as const) {
-      test(`${width} px ${colorScheme}: it runs in a real WebGL context with no errors and no outside requests`, async () => {
+    for (const theme of ['dark', 'light'] as const) {
+      test(`${width} px ${theme}: it runs in a real WebGL context with no errors and no outside requests`, async () => {
         const server = await serve();
         try {
-          const { page, errors, outside } = await openScene(server.url, { viewport: { width, height: 900 }, colorScheme });
+          const { page, errors, outside } = await openScene(server.url, { viewport: { width, height: 900 }, ...chosenTheme(server.url, theme) });
           await sceneRunning(page);
+          assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), theme, 'the saved choice decides, not the system');
           assert.equal(await page.evaluate(() => document.documentElement.classList.contains('has-scene')), true);
           const bytes = await page.locator('.scene-canvas').screenshot();
           assert.ok(bytes.length > 4000, `the canvas drew something: ${bytes.length} bytes`);
@@ -1200,11 +1180,16 @@ describe('landing page polish', () => {
     }
   });
 
-  for (const colorScheme of ['dark', 'light'] as const) {
-    test(`${colorScheme}: every box is a pane of glass with a soft blue edge and a soft shadow, and none has an opaque fill`, async () => {
-      const { page, close } = await landing({ colorScheme });
+  for (const theme of ['dark', 'light'] as const) {
+    test(`${theme}: every box is a pane of glass with a soft blue edge and a soft shadow, and none has an opaque fill`, async () => {
+      // The system asks for the other theme; a light page comes only from the visitor's click on the switch.
+      const { page, close } = await landing({ colorScheme: theme === 'dark' ? 'light' : 'dark' });
       try {
-        const panes = await page.locator('.flood-step, #hero-switch, .river-head, .column, .bridge-toggle, .drain-link .btn').evaluateAll((els) =>
+        if (theme === 'light') await page.locator('[data-theme-toggle]').filter({ visible: true }).first().click();
+        assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), theme);
+        // The colours move to the new theme in a CSS transition; read them when it ends.
+        await page.evaluate(() => Promise.all(document.getAnimations().filter((a) => a instanceof CSSTransition).map((a) => a.finished)));
+        const panes =await page.locator('.flood-step, #hero-switch, .river-head, .column, .bridge-toggle, .drain-link .btn').evaluateAll((els) =>
           els.map((el) => {
             const css = getComputedStyle(el);
             return { name: el.className, radius: parseFloat(css.borderTopLeftRadius), edge: css.borderTopColor, fill: css.backgroundColor, blur: css.backdropFilter, shadow: css.boxShadow };
@@ -1216,8 +1201,9 @@ describe('landing page polish', () => {
           assert.match(pane.edge, / 26[45](?:\.\d+)? \/ 0?\.\d+\)$/, `${pane.name}: the edge is the accent blue (hue 265) at low opacity: ${pane.edge}`);
           assert.match(pane.fill, /\/ 0?\.\d+\)$/, `${pane.name}: the fill lets the scene through: ${pane.fill}`);
           assert.match(pane.blur, /blur\(/, `${pane.name}: ${pane.blur}`);
-          const [x, y, spread] = [...pane.shadow.matchAll(/(-?\d+(?:\.\d+)?)px/g)].map((m) => Number(m[1]));
-          assert.ok(x === 0 && (y ?? 99) <= 8 && (spread ?? 0) >= 12, `${pane.name}: a small shadow that fades out: ${pane.shadow}`);
+          // A shadow can have layers (pin 331: contact, fade, top light). Each outer layer drops straight down; the widest one is soft.
+          const outer = pane.shadow.split(/,(?![^(]*\))/).filter((layer) => !layer.includes('inset')).map((layer) => [...layer.matchAll(/(-?\d+(?:\.\d+)?)px/g)].map((m) => Number(m[1])));
+          assert.ok(outer.length > 0 && outer.every(([x]) => x === 0) && Math.max(...outer.map(([, , blur]) => blur ?? 0)) >= 12, `${pane.name}: a soft drop shadow: ${pane.shadow}`);
         }
         const tag = await page.locator('.flood-tag').evaluate((el) => getComputedStyle(el).backgroundColor);
         assert.equal(tag, 'rgba(0, 0, 0, 0)', 'the tagline has no fill');

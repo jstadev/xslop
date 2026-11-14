@@ -1,21 +1,24 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="color-scheme" content="dark light" />
-    <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)" />
-    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#000000" />
+    <script src="/theme.js"></script>
     <meta name="robots" content="noindex" />
     <title>Page not found: xslop</title>
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="./src/styles/notfound.css" />
   </head>
   <body>
+    <!--include:sprite-->
+
     <header class="nf-head wrap">
       <a class="nf-brand" href="/" aria-label="xslop home">
-        <img src="../brand/wordmark.svg" width="105" height="36" alt="xslop" />
+        <svg class="nf-logo" viewBox="0 0 93 32" role="img" aria-label="xslop"><use class="logo-mark" href="#xs-mark" width="32" height="32" /><use href="#xs-word" x="30.5" width="60" height="32" /></svg>
       </a>
+      <!--include:theme-toggle-->
     </header>
     <main class="nf wrap">
       <p class="nf-line">

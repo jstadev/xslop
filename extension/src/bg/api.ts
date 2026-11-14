@@ -41,7 +41,7 @@ function remember(key: Promise<KeyRecord>): Promise<KeyRecord> {
 }
 
 const deviceKey = (): Promise<KeyRecord> =>
-  keyRec ?? remember(idbGet<KeyRecord>(KEY_ID).then((k) => (k?.privateKey && k.publicJwk ? k : makeKey())));
+  keyRec ?? remember(idbGet<KeyRecord>(KEY_ID).then((k) => (k?.privateKey instanceof CryptoKey && k.publicJwk ? k : makeKey())));
 
 function noteDate(res: Response): void {
   const d = Date.parse(res.headers.get('date') ?? '');

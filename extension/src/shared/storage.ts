@@ -2,7 +2,7 @@
 import { parseConfig } from './config';
 import { ext } from './ext';
 import { isObj } from './util';
-import { STORED_DEFAULTS, type Observation, type OutOp, type Stored, type StoredList } from './types';
+import { STORED_DEFAULTS, type Observation, type OutOp, type Stored, type StoredList, type Vote } from './types';
 
 export type StoredKey = keyof Stored;
 
@@ -46,7 +46,9 @@ export async function readStored<K extends StoredKey>(keys: readonly K[]): Promi
   }
   const stored: Partial<Stored> = out;
   if (stored.list) stored.list = idsBesideRows(stored.list);
-  if (stored.votes) stored.votes = stored.votes.map(withoutText);
+  if (stored.votes) {
+    stored.votes = stored.votes.flatMap((vote): Vote[] => (isObj(vote) && typeof vote.h === 'string' ? [withoutText(vote) as Vote] : []));
+  }
   if (stored.outbox) {
     const ops: unknown = stored.outbox.ops;
     const obs: unknown = stored.outbox.obs;

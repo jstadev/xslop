@@ -57,12 +57,17 @@ export async function enqueueObservations(items: Observation[]): Promise<void> {
 type Result = 'ok' | 'drop' | 'retry' | 'stop';
 
 /** Map a send failure to an action. 401 registers again once per flush; 4xx input errors drop the item. */
-async function classify(e: unknown, reRegistered: { done: boolean }): Promise<{ r: Result; retryAfter: number | null; msg: string }> {
+async function classify(e: unknown, reRegistered: { done: boolean; clock: boolean }): Promise<{ r: Result; retryAfter: number | null; msg: string }> {
   if (!(e instanceof ApiError)) return { r: 'retry', retryAfter: null, msg: 'network' };
   if (e.status === 403 && e.code === 'banned') {
     const s = await state();
     await save('status', { ...s.status, banned: true });
     return { r: 'stop', retryAfter: null, msg: e.code };
+  }
+  // The Date header already corrected the clock. Retry now. A second skew uses the normal backoff.
+  if (e.status === 401 && e.code === 'clock_skew' && !reRegistered.clock) {
+    reRegistered.clock = true;
+    return { r: 'retry', retryAfter: 0, msg: e.code };
   }
   if (e.status === 401 && !reRegistered.done && (e.code === 'unknown_install' || e.code === 'bad_signature')) {
     reRegistered.done = true;
@@ -103,10 +108,11 @@ export function flush(): Promise<void> {
 async function pass(): Promise<boolean> {
   const s = await state();
   if (s.status.banned) return false;
-  const re = { done: false };
+  const re = { done: false, clock: false };
   let failure: { retryAfter: number | null; msg: string } | null = null;
+  let rounds = 0;
 
-  for (let i = 0; i < 1000 && !failure; i++) {
+  for (; rounds < 1000 && !failure; rounds++) {
     const cur = await state();
     const op = cur.outbox.ops[0];
     const batch = op ? null : cur.outbox.obs.slice(0, OBS_MAX);
@@ -124,7 +130,7 @@ async function pass(): Promise<boolean> {
     } catch (e) {
       const c = await classify(e, re);
       result = c.r;
-      if (c.r === 'retry' && c.retryAfter === 0) continue; // registered again: try the same item now
+      if (c.r === 'retry' && c.retryAfter === 0) continue; // clock corrected, or registered again: try the same item now
       if (c.r === 'retry' || c.r === 'stop') failure = c;
     }
     if (result === 'retry' || result === 'stop') break;
@@ -133,7 +139,13 @@ async function pass(): Promise<boolean> {
     if (op) {
       await save('outbox', { ...after.outbox, ops: after.outbox.ops.filter((o) => o.seq !== op.seq) });
     } else {
-      await save('outbox', { ...after.outbox, obs: after.outbox.obs.slice(batch!.length) });
+      // Drop the sent items, not the first N. A newer queue may have replaced the prefix during the send.
+      const left = after.outbox.obs.slice();
+      for (const item of batch!) {
+        const i = left.findIndex((o) => o.tweetId === item.tweetId && o.handle === item.handle && o.parentTweetId === item.parentTweetId);
+        if (i >= 0) left.splice(i, 1);
+      }
+      await save('outbox', { ...after.outbox, obs: left });
     }
   }
 
@@ -155,5 +167,7 @@ async function pass(): Promise<boolean> {
     await save('outbox', { ...end.outbox, attempt: 0, nextAt: 0, lastError: null });
     await ext.alarms.clear(OUTBOX_ALARM);
   }
+  // One pass stops at 1000. What is left has no alarm yet, so run another pass.
+  if (rounds === 1000 && (end.outbox.ops.length > 0 || end.outbox.obs.length > 0)) again = true;
   return true;
 }

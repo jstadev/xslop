@@ -1,11 +1,11 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="color-scheme" content="dark light" />
-    <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)" />
-    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#000000" />
+    <script src="/theme.js"></script>
     <title>Sloppers</title>
     <meta name="description" content="The public record of every account on the xslop list: who is on it, how each account got there, and how to appeal." />
     <link rel="canonical" href="https://x-slop.com/sloppers" />
@@ -54,6 +54,7 @@
           <a class="sl-nav-link" href="/sloppers" aria-current="page">Sloppers</a>
           <a class="sl-nav-link" href="/check">Check a handle</a>
         </nav>
+        <!--include:theme-toggle-->
       </header>
 
       <main class="sl-main" id="main">
@@ -64,6 +65,7 @@
             <p class="sl-bar-count" id="sl-bar-count">Every account on the list</p>
           </div>
           <p class="sl-updated" id="sl-updated"></p>
+          <!--include:theme-toggle-->
           <a class="btn btn-primary btn-small sl-bar-install" href="/download">Install</a>
         </div>
 

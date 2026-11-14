@@ -525,8 +525,8 @@ your phone hides them too.
   draws the logo; it is never a button or text fill (white on it is 3.98:1).
   The interface accent stays `--xs-brand`. The lettering takes the text colour
   of its ground. The header of every page shows the lockup as one SVG from the
-  page sprite (`#xs-mark`, `#xs-word`) with the accessible name "xslop"; the
-  404 page, the admin console and the extension popup show `wordmark.svg`.
+  page sprite (`#xs-mark`, `#xs-word`) with the accessible name "xslop", the
+  404 page too; the admin console and the extension popup show `wordmark.svg`.
 - Admin console: login, appeals queue with decide buttons, account lookup with
   override actions, installs with ban, overview. Uses section 5.6 with the
   `x-csrf` header. No inline scripts or styles (CSP).
@@ -678,6 +678,14 @@ The best UX on X, easy from the first minute. The button sits in X's action row 
 - A scene file that fails to load, a scene that fails to start and a lost GL context all take the same path: the page waits (1, 2, 4, 8, 8... seconds) and starts again on a new canvas, with no limit of tries. A failed file is imported again with `?retry=N`, because a second `import()` of one URL makes no request in any browser. The page never reloads itself. The switch state carries over.
 - No step on scroll: the camera (`site/src/hero/camera.ts` `cameraPose`) and each drawn value (`site/src/hero/story.ts` `storyPicture`) are continuous functions of the stage and the drain. No code switches a value at a fixed stage. A scene that starts in the middle of the page starts at the scroll position.
 - The post of the thread has the ordered handle `@i_am_original`. It is the one demo handle with fewer than 16 characters (12.8).
+
+### 12.11c Dark and light (2026-11-13). Wins over 12.8 to 12.11b where they differ.
+
+- The landing page, the six footer pages, `/sloppers` and the 404 page have a dark theme and a light theme. Dark is the default for every visitor, also when the system is set to light. Dark has a pure black page (`oklch(0 0 0)`).
+- A switch in the header of each of these pages changes the theme (`site/partials/theme-toggle.html`). It is a round button with a sun in dark and a moon in light; its label is "Switch to light theme" or "Switch to dark theme". Without JavaScript it does not show and the page stays dark.
+- The choice stays in this browser only: `localStorage` key `xslop-theme`. The server never sees it. Another open tab of the site follows the switch.
+- `site/public/theme.js` is a classic script in `<head>` (the CSP allows no inline script). It sets `data-theme` on `<html>` before the first paint, keeps the `color-scheme` and `theme-color` meta tags in step, wires every `[data-theme-toggle]` button and fires `xslop:theme` on `document` after a switch. Each page also has `data-theme="dark"` in its markup. TypeScript reads the theme with `site/src/theme.ts`; the 3D scene repaints in the new palette at once.
+- `brand/tokens.css` applies the light tokens under `:root[data-theme="light"]`. A page without `data-theme` (the admin console, the extension popup) still follows the system setting. No landing page reads `prefers-color-scheme`.
 
 ### 12.12 Security round (2026-11-10). Wins over every earlier section.
 

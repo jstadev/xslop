@@ -377,6 +377,46 @@ textarea::placeholder {
   }
 }
 
+/* The dark and light switch (site/public/theme.js). It shows the theme that a click turns on. */
+.theme-toggle {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: var(--control-h);
+  height: var(--control-h);
+  padding: 0;
+  border: var(--rule) solid var(--color-line-strong);
+  border-radius: var(--radius-pill);
+  background: var(--color-clear);
+  color: var(--color-text);
+  cursor: pointer;
+  transition:
+    background-color var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out);
+}
+
+.theme-toggle:hover {
+  background: var(--color-surface);
+  border-color: var(--color-text-muted);
+}
+
+.theme-icon {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+:root[data-theme="light"] .theme-icon-sun,
+:root:not([data-theme="light"]) .theme-icon-moon {
+  display: none;
+}
+
+/* Without JavaScript the switch cannot work, so it does not show. */
+@media (scripting: none) {
+  .theme-toggle {
+    display: none;
+  }
+}
+
 /* The X logo stands in for the name X. Screen readers read the name; the logo is the picture. */
 .x-logo {
   display: inline-block;

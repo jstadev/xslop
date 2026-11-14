@@ -280,11 +280,6 @@ export async function startScene(options: SceneOptions): Promise<SceneControl> {
     refreshLayout();
   };
 
-  const scheme = window.matchMedia('(prefers-color-scheme: dark)');
-  const onScheme = (): void => {
-    applyPalette();
-  };
-
   function now(): number {
     return shared.uTime.value;
   }
@@ -400,7 +395,8 @@ export async function startScene(options: SceneOptions): Promise<SceneControl> {
 
   document.addEventListener('visibilitychange', onVisibility);
   window.addEventListener('resize', onResize);
-  scheme.addEventListener('change', onScheme);
+  // site/public/theme.js fires this event after each switch of the theme. destroy() removes the listener, because a lost GL context starts a new scene.
+  document.addEventListener('xslop:theme', applyPalette);
   area.addEventListener('pointermove', onPointerMove, { passive: true });
   area.addEventListener('pointerleave', onPointerLeave);
   area.addEventListener('click', onClick);
@@ -457,7 +453,7 @@ export async function startScene(options: SceneOptions): Promise<SceneControl> {
       sections.disconnect();
       document.removeEventListener('visibilitychange', onVisibility);
       window.removeEventListener('resize', onResize);
-      scheme.removeEventListener('change', onScheme);
+      document.removeEventListener('xslop:theme', applyPalette);
       area.removeEventListener('pointermove', onPointerMove);
       area.removeEventListener('pointerleave', onPointerLeave);
       area.removeEventListener('click', onClick);

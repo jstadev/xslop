@@ -2,6 +2,10 @@
 @import "./base.css";
 
 .nf-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
   padding-block: var(--space-5);
 }
 
@@ -9,6 +13,13 @@
   display: inline-flex;
   align-items: center;
   min-height: var(--control-h);
+}
+
+/* The fill states the colour that the symbols draw with, so a contrast check reads the real colour of each part. */
+.nf-logo {
+  width: 6.5625rem;
+  height: 2.25rem;
+  fill: currentColor;
 }
 
 .nf {

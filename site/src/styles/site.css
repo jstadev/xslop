@@ -167,6 +167,13 @@ main {
   }
 }
 
+/* On a phone the links take their own line under the brand. The small gap keeps all three controls on that line at 320 px. */
+@media (max-width: 30rem) {
+  .strip-nav {
+    column-gap: var(--space-2);
+  }
+}
+
 /* The numbers stay in their place while they load and when they fail, so the hero never moves. */
 .pulse {
   order: 1;
@@ -389,15 +396,13 @@ main {
     inset 0 2px 16px oklch(0 0 0 / 0.32);
 }
 
-@media (prefers-color-scheme: light) {
-  .flood-step {
-    box-shadow:
-      0 1px 3px oklch(0.21 0.015 250 / 0.12),
-      0 14px 30px -8px oklch(0.21 0.015 250 / 0.24),
-      0 30px 64px -18px oklch(0.21 0.015 250 / 0.22),
-      inset 0 1px 0 oklch(1 0 0 / 0.6),
-      inset 0 2px 14px oklch(0 0 0 / 0.08);
-  }
+:root[data-theme="light"] .flood-step {
+  box-shadow:
+    0 1px 3px oklch(0.21 0.015 250 / 0.12),
+    0 14px 30px -8px oklch(0.21 0.015 250 / 0.24),
+    0 30px 64px -18px oklch(0.21 0.015 250 / 0.22),
+    inset 0 1px 0 oklch(1 0 0 / 0.6),
+    inset 0 2px 14px oklch(0 0 0 / 0.08);
 }
 
 .flood-step-title {
@@ -563,7 +568,16 @@ main {
   font-size: var(--text-xl);
 }
 
-/* A light runs round the capsule edge, with a soft glow under it. Reduced motion keeps it still. */
+/* A light runs round the capsule edge, with a soft glow under it. Reduced motion keeps it still.
+ * Its bright point is near white on black. On white paper a white point looks like a gap, so the light theme uses the accent. */
+.river-control {
+  --glint: oklch(0.97 0.03 250);
+}
+
+:root[data-theme="light"] .river-control {
+  --glint: var(--color-accent);
+}
+
 @property --xs-glow-angle {
   syntax: "<angle>";
   inherits: false;
@@ -587,7 +601,7 @@ main {
     transparent 0deg,
     color-mix(in oklch, var(--color-accent) 30%, transparent) 90deg,
     var(--color-accent) 160deg,
-    oklch(0.97 0.03 250) 180deg,
+    var(--glint) 180deg,
     var(--color-accent) 200deg,
     color-mix(in oklch, var(--color-accent) 30%, transparent) 270deg,
     transparent 360deg
@@ -830,15 +844,13 @@ main {
     0 0 26.4px color-mix(in oklch, white 13.2%, transparent);
 }
 
-@media (prefers-color-scheme: light) {
-  .is-clean .reply:has(> .hidden-bar[hidden]) .rcard {
-    background: color-mix(in oklch, white 70%, transparent);
-    box-shadow:
-      inset 0 0 0 1px color-mix(in oklch, var(--color-accent) 28%, transparent),
-      inset 0 0 24px color-mix(in oklch, white 80%, transparent),
-      0 0 6px color-mix(in oklch, var(--color-accent) 22%, transparent),
-      0 0 19.8px color-mix(in oklch, var(--color-accent) 15.4%, transparent);
-  }
+:root[data-theme="light"] .is-clean .reply:has(> .hidden-bar[hidden]) .rcard {
+  background: color-mix(in oklch, white 70%, transparent);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in oklch, var(--color-accent) 28%, transparent),
+    inset 0 0 24px color-mix(in oklch, white 80%, transparent),
+    0 0 6px color-mix(in oklch, var(--color-accent) 22%, transparent),
+    0 0 19.8px color-mix(in oklch, var(--color-accent) 15.4%, transparent);
 }
 
 .bar-label {
@@ -1360,10 +1372,8 @@ main {
 }
 
 /* White keeps 3:1 on the blue of the dark theme. The blue of the light theme is pale, so the text colour stays. */
-@media (prefers-color-scheme: dark) {
-  .has-scene .end-statement {
-    color: var(--color-accent-ink);
-  }
+:root:not([data-theme="light"]) .has-scene .end-statement {
+  color: var(--color-accent-ink);
 }
 
 .xrow,
@@ -1786,10 +1796,8 @@ details[open] > summary .toggle::before {
 .status[data-status="none"] { color: var(--color-text-muted); }
 
 /* The light warn color keeps 4.5:1 only on plain paper, so Flagged has no fill there. */
-@media (prefers-color-scheme: light) {
-  .status[data-status="flagged"] {
-    background: none;
-  }
+:root[data-theme="light"] .status[data-status="flagged"] {
+  background: none;
 }
 
 .account-summary {
@@ -2181,12 +2189,10 @@ details[open] > summary .toggle::before {
   }
 }
 
-@media (prefers-color-scheme: light) {
-  :root {
-    --poster: url("../../../brand/poster-light.webp");
-    --glass-blue: 3%;
-    --shadow-soft: 0 6px 18px oklch(0.21 0.015 250 / 0.12);
-  }
+:root[data-theme="light"] {
+  --poster: url("../../../brand/poster-light.webp");
+  --glass-blue: 3%;
+  --shadow-soft: 0 6px 18px oklch(0.21 0.015 250 / 0.12);
 }
 
 @media (scripting: none) {

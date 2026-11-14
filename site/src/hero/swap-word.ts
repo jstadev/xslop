@@ -4,6 +4,7 @@
 // a page without JavaScript keeps it. A canvas over the word draws the change and the other word.
 
 import { h, req } from '../lib/dom.ts';
+import { onThemeChange } from '../theme.ts';
 
 const CYCLE_MS = 3000;
 const MORPH_MS = 950;
@@ -261,7 +262,7 @@ function run(
     timer = window.setTimeout(morph, delay);
   }
 
-  /** A new size or colour scheme: measure again, and redraw now unless a morph runs (the next one measures). */
+  /** A new size or theme: measure again, and redraw now unless a morph runs (the next one measures). */
   function remeasure(): void {
     layout = null;
     if (!frame) drawRest();
@@ -279,5 +280,5 @@ function run(
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden) schedule(CYCLE_MS - MORPH_MS);
   });
-  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', remeasure);
+  onThemeChange(remeasure);
 }

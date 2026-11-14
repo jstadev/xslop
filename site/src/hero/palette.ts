@@ -1,6 +1,7 @@
-// Reads the page's color tokens, so the scene follows brand/tokens.css and the system theme.
+// Reads the page's color tokens, so the scene follows brand/tokens.css and the theme of the page.
 
 import { Color } from 'three';
+import { currentTheme } from '../theme.ts';
 
 export interface Palette {
   dark: boolean;
@@ -29,7 +30,7 @@ export function readPalette(): Palette {
   if (!paint) throw new Error('2d canvas unavailable');
   const styles = getComputedStyle(document.documentElement);
   const token = (name: string): Color => readToken(paint, styles, name);
-  const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const dark = currentTheme() === 'dark';
   const bg = token('--color-bg');
   const text = token('--color-text');
   const line = token('--color-line');

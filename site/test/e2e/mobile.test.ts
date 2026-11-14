@@ -22,7 +22,7 @@ const VIEWS: { name: string; path: string; scope?: string; show?: (page: Page) =
   { name: 'landing strip and footer', path: '/', scope: '.strip, .site-foot' },
   { name: 'how it works', path: '/how-it-works' },
   { name: 'rules', path: '/rules' },
-  { name: 'download', path: '/download', show: (page) => page.locator('#install-now a').first().waitFor() },
+  { name: 'download', path: '/download', show: (page) => page.locator('#install-now a[href]').first().waitFor() },
   { name: 'check', path: '/check' },
   {
     name: 'check result',

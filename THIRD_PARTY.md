@@ -8,6 +8,7 @@ The xslop code is under the MIT licence (`LICENSE`). The items below belong to o
 |---|---|---|---|
 | three.js 0.187.0 | the landing page bundle (`site/dist/assets`) | MIT | The only library in the site bundle. |
 | Mona Sans (variable, latin and latin-ext subsets) | `brand/fonts/*.woff2`, the site | SIL Open Font License 1.1, `brand/fonts/OFL.txt` | Copyright The Mona Sans Project Authors, https://github.com/github/mona-sans. The web subsets come from the Fontsource package `@fontsource-variable/mona-sans`. The licence reserves the font name "Mona"; the subsets keep the original name. |
+| Octicons `mark-github-16` 19.42.0 (the GitHub mark) | `site/download/index.html`, the open source part of `/download` | MIT, Copyright (c) 2026 GitHub Inc. | One SVG path, unchanged, from the `@primer/octicons` package (https://github.com/primer/octicons). It only names GitHub, where the code is. |
 | fastify 5.12.8, pg 8.23.1 and their dependencies | the server at run time (`server/node_modules`, not in any zip) | MIT, ISC, BSD-3-Clause | The run time table below lists each package. |
 
 The extension zips contain only code from this repository and the icons in `brand/`. No npm package goes into them.
@@ -30,6 +31,7 @@ The extension zips contain only code from this repository and the icons in `bran
 - **X** and the X logo are trademarks of X Corp. xslop uses the name X and the X logo only to name the service that the extension works on, without change to the logo. xslop is independent and has no relation with X Corp. The X logo is not under the MIT licence of this repository.
 - The xslop mark and wordmark (`brand/`) are part of this repository. The x in xslop means "crossed out", not the X company.
 - "Community Notes" names a feature of X. The site uses the words only to compare.
+- **GitHub** and the GitHub mark are trademarks of GitHub, Inc. `/download` shows the mark only beside the links to the xslop repository.
 
 ## Every package of the three lockfiles
 

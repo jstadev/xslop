@@ -501,16 +501,22 @@ describe('download', () => {
     }
   });
 
-  async function detected(options: BrowserContextOptions, overrides: Parameters<typeof serve>[0] = {}, setup?: (page: Watched['page']) => Promise<unknown>): Promise<{ text: string; page: Watched['page']; close: () => Promise<void> }> {
+  async function detected(options: BrowserContextOptions, overrides: Parameters<typeof serve>[0] = {}, setup?: (page: Watched['page']) => Promise<unknown>): Promise<{ text: string; page: Watched['page']; errors: string[]; close: () => Promise<void> }> {
     const server = await serve(overrides);
     const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, ...options });
     const page = await context.newPage();
+    const errors: string[] = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    page.on('console', (m) => {
+      if (m.type() === 'error') errors.push(m.text());
+    });
     await setup?.(page);
     await page.goto(`${server.url}/download`, { waitUntil: 'networkidle' });
     await page.locator('#install-version', { hasText: 'Version' }).waitFor();
     return {
       text: (await page.locator('#install-now').textContent()) ?? '',
       page,
+      errors,
       close: async () => {
         await context.close();
         await server.close();
@@ -518,220 +524,266 @@ describe('download', () => {
     };
   }
 
-  test('Chrome: the zip, the real extensions page, no claim of a store listing', async () => {
-    const { text, page, close } = await detected({ userAgent: CHROME_UA });
+  /** The cards of one list: the name of each browser and whether the card is marked as the visitor's browser. */
+  const cards = (page: Watched['page'], list: 'supported' | 'soon') =>
+    page.locator(`#${list}-list > li`).evaluateAll((els) => els.map((el) => [el.querySelector('h3')?.textContent, el.classList.contains('is-yours') && el.textContent?.includes('Your browser')]));
+
+  test('Chrome without a store URL: the zip is the main way, with its SHA-256, and nothing names the Chrome Web Store', async () => {
+    const { text, page, errors, close } = await detected({ userAgent: CHROME_UA });
     try {
       assert.match(text, /You are on Chrome\./);
       assert.match(text, /chrome:\/\/extensions/);
       assert.match(text, /Load unpacked/);
-      assert.equal(await page.locator('#install-now a[download]').getAttribute('href'), '/downloads/xslop-chrome-v1.0.0.zip');
-      assert.equal(await page.locator('a[href*="chromewebstore"], a[href*="addons.mozilla.org"]').count(), 0, 'no store button without a store URL');
-    } finally {
-      await close();
-    }
-  });
-
-  test('Brave is told apart from Chrome by navigator.brave', async () => {
-    const { text, close } = await detected({ userAgent: CHROME_UA }, {}, (page) => page.addInitScript('Object.defineProperty(navigator, "brave", { value: {} })'));
-    try {
-      assert.match(text, /You are on Brave\./);
-      assert.match(text, /brave:\/\/extensions/);
-    } finally {
-      await close();
-    }
-  });
-
-  test('Firefox desktop: the temporary add-on, and that it goes away on restart', async () => {
-    const { text, page, close } = await detected({ userAgent: 'Mozilla/5.0 (X11; Linux x86_64; rv:132.0) Gecko/20100101 Firefox/132.0' });
-    try {
-      assert.match(text, /You are on Firefox\./);
-      assert.match(text, /about:debugging/);
-      assert.match(text, /removes a temporary add-on when it restarts/);
-      assert.equal(await page.locator('#install-now a[download]').getAttribute('href'), '/downloads/xslop-firefox-v1.0.0.zip');
-    } finally {
-      await close();
-    }
-  });
-
-  test('Firefox Android says that the listing is not live, without a store link', async () => {
-    const { text, page, close } = await detected({ userAgent: 'Mozilla/5.0 (Android 14; Mobile; rv:132.0) Gecko/132.0 Firefox/132.0' });
-    try {
-      assert.match(text, /the xslop listing is not live yet/);
-      assert.equal(await page.locator('#install-now a').count(), 0);
-    } finally {
-      await close();
-    }
-  });
-
-  test('store buttons appear when latest.json names the stores', async () => {
-    const chrome = await detected({ userAgent: CHROME_UA }, { latest: 'store' });
-    try {
-      const badge = chrome.page.locator('#install-now a.store-badge');
-      assert.equal(await badge.getAttribute('href'), STORE_URL);
-      assert.equal(await badge.getAttribute('aria-label'), 'Available in the Chrome Web Store');
-      assert.equal(await badge.evaluate((el) => getComputedStyle(el).backgroundImage.includes('chrome-web-store')), true, 'the official badge picture');
-      // The zip steps stay below the badge as the second way.
-      assert.match(chrome.text, /Or install the zip yourself/);
-      assert.equal(await chrome.page.locator('#install-now a[download]').getAttribute('href'), '/downloads/xslop-chrome-v1.0.0.zip');
-      assert.match((await chrome.page.locator('#install-now a[download]').getAttribute('class')) ?? '', /btn-quiet/, 'the zip is the quiet second way');
-      const [badgeBox, zipBox] = await Promise.all([badge.boundingBox(), chrome.page.locator('#install-now a[download]').boundingBox()]);
-      assert.ok(badgeBox && zipBox && badgeBox.y + badgeBox.height <= zipBox.y, 'the store first, the zip below');
-    } finally {
-      await chrome.close();
-    }
-    const firefox = await detected({ userAgent: 'Mozilla/5.0 (X11; Linux x86_64; rv:132.0) Gecko/20100101 Firefox/132.0' }, { latest: 'store' });
-    try {
-      assert.equal(await firefox.page.locator('#install-now a').getAttribute('href'), 'https://addons.mozilla.org/firefox/addon/xslop/');
-      assert.equal(await firefox.page.locator('#install-now a[download]').count(), 0, 'no zip when the store is live');
-    } finally {
-      await firefox.close();
-    }
-  });
-
-  test('Brave and Vivaldi get the store badge too; Edge keeps the zip path', async () => {
-    const brave = await detected({ userAgent: CHROME_UA }, { latest: 'store' }, (page) => page.addInitScript('Object.defineProperty(navigator, "brave", { value: {} })'));
-    try {
-      assert.match(brave.text, /You are on Brave\./);
-      assert.equal(await brave.page.locator('#install-now a.store-badge').getAttribute('href'), STORE_URL);
-    } finally {
-      await brave.close();
-    }
-    const vivaldi = await detected({ userAgent: `${CHROME_UA} Vivaldi/7.0` }, { latest: 'store' });
-    try {
-      assert.match(vivaldi.text, /You are on Vivaldi\./);
-      assert.equal(await vivaldi.page.locator('#install-now a.store-badge').getAttribute('href'), STORE_URL);
-    } finally {
-      await vivaldi.close();
-    }
-    const edge = await detected({ userAgent: EDGE_UA }, { latest: 'store' });
-    try {
-      assert.match(edge.text, /You are on Edge\./);
-      assert.equal(await edge.page.locator('#install-now a[href*="chromewebstore"]').count(), 0, 'Edge has a store of its own');
-      assert.equal(await edge.page.locator('#install-now a[download]').getAttribute('href'), '/downloads/xslop-chrome-v1.0.0.zip');
-      assert.match(edge.text, /edge:\/\/extensions/);
-    } finally {
-      await edge.close();
-    }
-  });
-
-  test('Safari: the package and the honest route through Xcode', async () => {
-    const { text, page, close } = await detected({ userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_6) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15' });
-    try {
-      assert.match(text, /You are on Safari\./);
-      assert.match(text, /Xcode/);
-      assert.match(text, /App Store has no xslop listing/);
-      assert.equal(await page.locator('#install-now a[download]').getAttribute('href'), '/downloads/xslop-safari-v1.0.0.zip');
-    } finally {
-      await close();
-    }
-  });
-
-  test('every other browser is one click away', async () => {
-    const { page, close } = await detected({ userAgent: CHROME_UA });
-    try {
-      const others = page.locator('#install-others details');
-      assert.equal(await others.count(), 8);
-      await others.filter({ hasText: 'Edge' }).locator('summary').click();
-      await page.locator('#install-others code', { hasText: 'edge://extensions' }).waitFor();
-    } finally {
-      await close();
-    }
-  });
-});
-
-describe('the store button on the landing page', () => {
-  /** The landing page with latest.json held back until `release` runs, so a test sees the page while the list loads. */
-  async function landingWith(userAgent: string, latest: 'ok' | 'store' | 'down') {
-    const server = await serve({ latest });
-    const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, userAgent });
-    const page = await context.newPage();
-    const errors: string[] = [];
-    const asked: string[] = [];
-    page.on('pageerror', (e) => errors.push(e.message));
-    page.on('request', (r) => {
-      if (new URL(r.url()).pathname === '/downloads/latest.json') asked.push(r.url());
-    });
-    let release = (): void => undefined;
-    const held = new Promise<void>((resolve) => (release = resolve));
-    await page.route('**/downloads/latest.json', async (route) => {
-      await held;
-      await route.continue();
-    });
-    await page.goto(`${server.url}/`, { waitUntil: 'load' });
-    await page.evaluate(() => document.fonts.ready);
-    return {
-      page,
-      errors,
-      asked,
-      release,
-      close: async () => {
-        await context.close();
-        await server.close();
-      },
-    };
-  }
-
-  /** Each install link of the landing page: its place, its target and whether it shows. */
-  const links = (page: Watched['page']) =>
-    page.locator('a[data-store-link]').evaluateAll((els) => els.map((el) => [el.classList[el.classList.length - 1], el.getAttribute('href'), !(el as HTMLElement).hidden]));
-  const heroBoxes = (page: Watched['page']) =>
-    page.locator('.flood-lead, .flood-step, #hero-switch').evaluateAll((els) => els.map((el) => JSON.stringify(el.getBoundingClientRect())));
-
-  test('Chrome with a listing: the header, the hero badge and the last act lead to the store, and nothing on the page moves', async () => {
-    const { page, errors, release, close } = await landingWith(CHROME_UA, 'store');
-    try {
-      // While the list loads, every button keeps /download and the badge is not there: no empty button.
-      assert.deepEqual(await links(page), [['strip-install', '/download', true], ['store-badge', null, false], ['drain-install', '/download', true]]);
-      const before = await heroBoxes(page);
-      release();
-      await page.locator('.flood-step .store-badge').waitFor({ state: 'visible' });
-      assert.deepEqual(await links(page), [['strip-install', STORE_URL, true], ['store-badge', STORE_URL, true], ['drain-install', STORE_URL, true]]);
-      assert.deepEqual(await heroBoxes(page), before, 'the badge moves nothing');
-      // The badge sits inside the Install box, under its words, at every width with the steps side by side.
-      for (const width of [800, 1000, 1280, 1440, 1920]) {
-        await page.setViewportSize({ width, height: 900 });
-        const fit = await page.locator('.flood-step').first().evaluate((step) => {
-          const badge = step.querySelector('.store-badge')!;
-          const range = document.createRange();
-          range.setStartBefore(step.firstChild!);
-          range.setEndBefore(badge);
-          const words = range.getBoundingClientRect();
-          const b = badge.getBoundingClientRect();
-          const box = step.getBoundingClientRect();
-          return { inside: b.left >= box.left && b.right <= box.right && b.bottom <= box.bottom, clear: b.top >= words.bottom + 4 };
-        });
-        assert.deepEqual(fit, { inside: true, clear: true }, `${width} px`);
-      }
-      // Stacked steps leave no free space in the box, so a narrow window keeps the badge out and the header button leads to the store.
-      await page.setViewportSize({ width: 600, height: 900 });
-      assert.equal(await page.locator('.flood-step .store-badge').isVisible(), false);
+      const zip = page.locator('#install-now a[download]');
+      assert.equal(await zip.getAttribute('href'), '/downloads/xslop-chrome-v1.0.0.zip');
+      assert.match((await zip.getAttribute('class')) ?? '', /btn-primary/, 'the zip is the main action');
+      assert.match((await page.locator('#install-now .sha').textContent()) ?? '', /^SHA-256 [0-9a-f]{64}$/);
+      assert.equal(await page.locator('#install-now button', { hasText: 'Copy SHA-256' }).count(), 1);
+      assert.equal(await page.locator('#install-now li', { hasText: 'chrome://extensions' }).locator('button', { hasText: 'Copy' }).count(), 1);
+      assert.equal(await page.locator('.store-badge, a[href*="chromewebstore"], a[href*="addons.mozilla.org"]').count(), 0, 'no store button without a store URL');
+      assert.doesNotMatch(await page.locator('main').innerText(), /Web Store/);
+      assert.deepEqual(await cards(page, 'supported'), [['Chrome', true], ['Brave', false], ['Vivaldi', false], ['Arc', false], ['Edge', false], ['Opera', false]]);
+      assert.deepEqual(await cards(page, 'soon'), [['Firefox', false], ['Firefox for Android', false], ['Safari', false]]);
+      // Each card holds its zip, and its steps and SHA-256 one click away.
+      const edge = page.locator('#browser-edge');
+      assert.equal(await edge.locator('a[download]').getAttribute('href'), '/downloads/xslop-chrome-v1.0.0.zip');
+      assert.match((await edge.locator('a[download]').getAttribute('class')) ?? '', /btn-quiet/, 'the hero has the one main action');
+      await edge.locator('summary', { hasText: 'How to install' }).click();
+      await edge.locator('code', { hasText: 'edge://extensions' }).waitFor();
+      assert.match((await edge.locator('.sha').textContent()) ?? '', /^SHA-256 [0-9a-f]{64}$/);
       assert.deepEqual(errors, []);
     } finally {
       await close();
     }
   });
 
-  for (const [name, userAgent, latest] of [
-    ['Firefox with a listing', FIREFOX_UA, 'store'],
-    ['Edge with a listing', EDGE_UA, 'store'],
-    ['Chrome without a listing', CHROME_UA, 'ok'],
-    ['Chrome when the list fails', CHROME_UA, 'down'],
-  ] as const) {
-    test(`${name}: every install button leads to /download, and the hero has no badge`, async () => {
-      const { page, errors, asked, release, close } = await landingWith(userAgent, latest);
-      try {
-        const answered = userAgent === CHROME_UA ? page.waitForResponse((r) => new URL(r.url()).pathname === '/downloads/latest.json') : null;
-        release();
-        await answered;
-        await page.waitForTimeout(300);
-        assert.deepEqual(await links(page), [['strip-install', '/download', true], ['store-badge', null, false], ['drain-install', '/download', true]]);
-        assert.equal(asked.length, userAgent === CHROME_UA ? 1 : 0, 'only a browser of the Chrome Web Store asks for the list');
-        assert.deepEqual(errors, []);
-      } finally {
-        await close();
+  test('Chrome with a store URL: the official badge links to the listing, and the zip is the second way', async () => {
+    const { text, page, close } = await detected({ userAgent: CHROME_UA }, { latest: 'store' });
+    try {
+      const badge = page.locator('#install-now a.store-badge');
+      assert.equal(await badge.getAttribute('href'), STORE_URL);
+      assert.equal(await badge.getAttribute('rel'), 'noopener noreferrer');
+      assert.equal(await badge.getAttribute('aria-label'), 'Available in the Chrome Web Store');
+      assert.equal(await badge.evaluate((el) => getComputedStyle(el).backgroundImage.includes('chrome-web-store')), true, 'the official badge picture');
+      assert.match(text, /Or install the zip yourself/);
+      const zip = page.locator('#install-now a[download]');
+      assert.equal(await zip.getAttribute('href'), '/downloads/xslop-chrome-v1.0.0.zip');
+      assert.match((await zip.getAttribute('class')) ?? '', /btn-quiet/, 'the zip is the quiet second way');
+      const [badgeBox, zipBox] = await Promise.all([badge.boundingBox(), zip.boundingBox()]);
+      assert.ok(badgeBox && zipBox && badgeBox.y + badgeBox.height <= zipBox.y, 'the store first, the zip below');
+      // The cards of the browsers that install from the Chrome Web Store show the badge; Edge and Opera keep the zip.
+      for (const id of ['chrome', 'brave', 'vivaldi', 'arc']) {
+        assert.equal(await page.locator(`#browser-${id} a.store-badge`).getAttribute('href'), STORE_URL, id);
+        await page.locator(`#browser-${id} summary`, { hasText: 'Or install the zip yourself' }).click();
+        assert.equal(await page.locator(`#browser-${id} a[download]`).getAttribute('href'), '/downloads/xslop-chrome-v1.0.0.zip', id);
       }
-    });
-  }
+      for (const id of ['edge', 'opera']) {
+        assert.equal(await page.locator(`#browser-${id} .store-badge`).count(), 0, id);
+        assert.equal(await page.locator(`#browser-${id} a[download]`).getAttribute('href'), '/downloads/xslop-chrome-v1.0.0.zip', id);
+      }
+    } finally {
+      await close();
+    }
+  });
+
+  test('Brave is told apart from Chrome by navigator.brave', async () => {
+    const { text, page, close } = await detected({ userAgent: CHROME_UA }, {}, (page) => page.addInitScript('Object.defineProperty(navigator, "brave", { value: {} })'));
+    try {
+      assert.match(text, /You are on Brave\./);
+      assert.match(text, /brave:\/\/extensions/);
+      assert.deepEqual((await cards(page, 'supported')).filter(([, yours]) => yours), [['Brave', true]]);
+    } finally {
+      await close();
+    }
+  });
+
+  test('Edge: the zip with edge://extensions, and no Chrome Web Store badge even with a store URL', async () => {
+    const { text, page, close } = await detected({ userAgent: EDGE_UA }, { latest: 'store' });
+    try {
+      assert.match(text, /You are on Edge\./);
+      assert.match(text, /edge:\/\/extensions/);
+      assert.equal(await page.locator('#install-now a[href*="chromewebstore"], #install-now .store-badge').count(), 0, 'Edge has a store of its own');
+      assert.equal(await page.locator('#install-now a[download]').getAttribute('href'), '/downloads/xslop-chrome-v1.0.0.zip');
+      assert.deepEqual((await cards(page, 'supported')).filter(([, yours]) => yours), [['Edge', true]]);
+    } finally {
+      await close();
+    }
+  });
+
+  test('Firefox without a listing: coming soon, with the temporary zip as a small option and its restart warning', async () => {
+    const { text, page, close } = await detected({ userAgent: FIREFOX_UA });
+    try {
+      assert.match(text, /You are on Firefox\./);
+      assert.match(text, /listing is not live yet/);
+      assert.match(text, /about:debugging/);
+      assert.match(text, /removes a temporary add-on when it restarts/);
+      assert.equal(await page.locator('#install-now a[download]').getAttribute('href'), '/downloads/xslop-firefox-v1.0.0.zip');
+      assert.deepEqual(await cards(page, 'soon'), [['Firefox', true], ['Firefox for Android', false], ['Safari', false]]);
+      assert.equal(await page.locator('#supported-list h3', { hasText: 'Firefox' }).count(), 0);
+      const card = page.locator('#browser-firefox');
+      assert.equal(await card.locator('a[download]').isVisible(), false, 'the zip is folded away');
+      await card.locator('summary', { hasText: 'Try it now' }).click();
+      assert.equal(await card.locator('a[download]').getAttribute('href'), '/downloads/xslop-firefox-v1.0.0.zip');
+      assert.match((await card.textContent()) ?? '', /removes a temporary add-on when it restarts/);
+      assert.equal(await page.locator('a[href*="addons.mozilla.org"]').count(), 0);
+    } finally {
+      await close();
+    }
+  });
+
+  test('Firefox with a listing in latest.json: supported, with the store button and no zip', async () => {
+    const { page, close } = await detected({ userAgent: FIREFOX_UA }, { latest: 'store' });
+    try {
+      const add = page.locator('#install-now a', { hasText: 'Add to Firefox' });
+      assert.equal(await add.getAttribute('href'), 'https://addons.mozilla.org/firefox/addon/xslop/');
+      assert.equal(await add.getAttribute('rel'), 'noopener noreferrer');
+      assert.equal(await page.locator('#install-now a[download]').count(), 0, 'no zip when the store is live');
+      assert.deepEqual(await cards(page, 'supported'), [['Chrome', false], ['Brave', false], ['Vivaldi', false], ['Arc', false], ['Edge', false], ['Opera', false], ['Firefox', true], ['Firefox for Android', false]]);
+      assert.deepEqual(await cards(page, 'soon'), [['Safari', false]]);
+      assert.equal(await page.locator('#browser-firefox-android a').getAttribute('href'), 'https://addons.mozilla.org/firefox/addon/xslop/');
+    } finally {
+      await close();
+    }
+  });
+
+  test('Firefox Android says that the listing is not live, without a store link, and points to the computer browsers', async () => {
+    const { text, page, close } = await detected({ userAgent: 'Mozilla/5.0 (Android 14; Mobile; rv:132.0) Gecko/132.0 Firefox/132.0' });
+    try {
+      assert.match(text, /the xslop listing is not live yet/);
+      assert.match(text, /turn on mute sync/);
+      assert.deepEqual(await page.locator('#install-now a').evaluateAll((els) => els.map((el) => el.getAttribute('href'))), ['#supported']);
+    } finally {
+      await close();
+    }
+  });
+
+  test('a phone browser without extensions: install on a computer and turn on mute sync', async () => {
+    const { text, page, close } = await detected({ userAgent: 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36' });
+    try {
+      assert.match(text, /This browser cannot load extensions\. Install xslop on a computer and turn on mute sync/);
+      assert.deepEqual(await page.locator('#install-now a').evaluateAll((els) => els.map((el) => el.getAttribute('href'))), ['#supported']);
+      assert.equal(await page.locator('.is-yours').count(), 0);
+    } finally {
+      await close();
+    }
+  });
+
+  test('Safari: coming soon, with the package and the route through Xcode', async () => {
+    const { text, page, close } = await detected({ userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_6) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15' });
+    try {
+      assert.match(text, /You are on Safari\./);
+      assert.match(text, /Xcode/);
+      assert.match(text, /App Store has no xslop listing/);
+      assert.equal(await page.locator('#install-now a[download]').getAttribute('href'), '/downloads/xslop-safari-v1.0.0.zip');
+      await page.locator('#browser-safari summary', { hasText: 'Build it yourself on a Mac' }).click();
+      assert.equal(await page.locator('#browser-safari a[download]').getAttribute('href'), '/downloads/xslop-safari-v1.0.0.zip');
+    } finally {
+      await close();
+    }
+  });
+
+  test('the open source section links to the repository and its issues', async () => {
+    const { page, close } = await detected({ userAgent: CHROME_UA });
+    try {
+      const links = page.locator('#open-source a');
+      assert.deepEqual(await links.evaluateAll((els) => els.map((el) => [el.textContent?.trim(), el.getAttribute('href'), el.getAttribute('rel')])), [
+        ['Star on GitHub', 'https://github.com/jstadev/xslop', 'noopener noreferrer'],
+        ['Download from GitHub', 'https://github.com/jstadev/xslop/releases/latest', 'noopener noreferrer'],
+        ['Read the code', 'https://github.com/jstadev/xslop', 'noopener noreferrer'],
+        ['Report a bug', 'https://github.com/jstadev/xslop/issues', 'noopener noreferrer'],
+      ]);
+      assert.equal(await page.locator('#open-source a svg use[href="#gh-mark"]').count(), 1, 'the GitHub mark from the page sprite');
+      assert.match((await page.locator('#open-source').textContent()) ?? '', /open source under the MIT licence/);
+    } finally {
+      await close();
+    }
+  });
+
+  test('a paint before the page script shows only the head, and the first drawing shifts nothing on screen', async () => {
+    const server = await serve();
+    const context = await browser.newContext({ viewport: { width: 320, height: 568 }, userAgent: CHROME_UA });
+    try {
+      const page = await context.newPage();
+      await page.addInitScript(() => {
+        const w = window as unknown as { shift: number };
+        w.shift = 0;
+        new PerformanceObserver((list) => {
+          for (const entry of list.getEntries() as unknown as { value: number }[]) w.shift += entry.value;
+        }).observe({ type: 'layout-shift', buffered: true });
+      });
+      let release = (): void => undefined;
+      const held = new Promise<void>((resolve) => (release = resolve));
+      await page.route(/\/assets\/download-[^/]*\.js$/, async (route) => {
+        await held;
+        await route.continue();
+      });
+      // A held module script also holds DOMContentLoaded, so the test waits for the first bytes and the painted title.
+      await page.goto(`${server.url}/download`, { waitUntil: 'commit' });
+      await page.locator('#install-title').waitFor();
+      await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))));
+      assert.equal(await page.locator('#install-title').isVisible(), true);
+      for (const part of ['#install-now', '#supported', '#soon', '#open-source', 'footer']) assert.equal(await page.locator(part).isVisible(), false, `${part} waits for the script`);
+      release();
+      await page.locator('#install-version', { hasText: 'Version' }).waitFor();
+      for (const part of ['#install-now', '#supported', '#open-source']) await page.locator(part).waitFor();
+      await page.waitForTimeout(300);
+      assert.ok((await page.evaluate(() => (window as unknown as { shift: number }).shift)) < 0.01, 'no layout shift');
+    } finally {
+      await context.close();
+      await server.close();
+    }
+  });
+
+  test('nothing moves while latest.json loads, and a failed list leaves a finished page', async () => {
+    for (const [latest, width] of [['ok', 375], ['ok', 1440], ['down', 1440]] as const) {
+      const server = await serve({ latest });
+      const context = await browser.newContext({ viewport: { width, height: 900 }, userAgent: CHROME_UA });
+      try {
+        const page = await context.newPage();
+        let release = (): void => undefined;
+        const held = new Promise<void>((resolve) => (release = resolve));
+        await page.route('**/downloads/latest.json', async (route) => {
+          await held;
+          await route.continue();
+        });
+        await page.goto(`${server.url}/download`, { waitUntil: 'load' });
+        await page.evaluate(() => document.fonts.ready);
+        // Layout boxes: the entrance of the hero panel is a transform, and a transform moves no layout.
+        const boxes = () => page.locator('#install-now, #supported, #soon, #open-source, footer').evaluateAll((els) => els.map((el) => { const e = el as HTMLElement; return [e.offsetTop, e.offsetLeft, e.offsetWidth, e.offsetHeight]; }));
+        const before = await boxes();
+        assert.equal(await page.locator('#install-now a[href]').count(), 0, 'no link before the list says where the zip is');
+        release();
+        await page.locator('#install-version', { hasText: latest === 'ok' ? 'Version' : 'did not load' }).waitFor();
+        if (latest === 'ok') {
+          assert.deepEqual(await boxes(), before, `${width} px: the answer moves nothing`);
+        } else {
+          assert.equal(await page.locator('#install-now a').count(), 0);
+          assert.match((await page.locator('#install-now').textContent()) ?? '', /Reload the page to try again/);
+          assert.equal(await page.locator('#supported-list > li').count(), 6, 'the browsers and their steps stay');
+        }
+      } finally {
+        await context.close();
+        await server.close();
+      }
+    }
+  });
+});
+
+describe('the install links of the landing page', () => {
+  test('Chrome with a store URL: every Install link leads to /download, and nothing on the page links to the Chrome Web Store', async () => {
+    const server = await serve({ latest: 'store' });
+    try {
+      const { page, errors } = await open(browser, `${server.url}/`, { userAgent: CHROME_UA });
+      await page.waitForTimeout(300);
+      assert.deepEqual(await page.locator('a.btn-primary').evaluateAll((els) => els.map((el) => [el.textContent?.trim(), el.getAttribute('href')])), [['Install', '/download'], ['Install xslop', '/download']]);
+      assert.equal(await page.locator('a[href*="chromewebstore"], .store-badge, [data-store-link]').count(), 0);
+      assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((r) => r.name.includes('/downloads/latest.json'))), false, 'the landing page does not ask for the download list');
+      assert.deepEqual(errors, []);
+      await page.context().close();
+    } finally {
+      await server.close();
+    }
+  });
 });
 
 describe('the scene', () => {

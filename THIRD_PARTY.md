@@ -9,6 +9,7 @@ The xslop code is under the MIT licence (`LICENSE`). The items below belong to o
 | three.js 0.187.0 | the landing page bundle (`site/dist/assets`) | MIT | The only library in the site bundle. |
 | Mona Sans (variable, latin and latin-ext subsets) | `brand/fonts/*.woff2`, the site | SIL Open Font License 1.1, `brand/fonts/OFL.txt` | Copyright The Mona Sans Project Authors, https://github.com/github/mona-sans. The web subsets come from the Fontsource package `@fontsource-variable/mona-sans`. The licence reserves the font name "Mona"; the subsets keep the original name. |
 | Octicons `mark-github-16` 19.42.0 (the GitHub mark) | `site/download/index.html`, the open source part of `/download` | MIT, Copyright (c) 2026 GitHub Inc. | One SVG path, unchanged, from the `@primer/octicons` package (https://github.com/primer/octicons). It only names GitHub, where the code is. |
+| Simple Icons 16.37.0 (Chrome, Brave, Vivaldi, Arc, Opera, Firefox Browser, Safari) and 9.21.0 (Microsoft Edge) | `site/download/index.html`, the browser cards of `/download` | CC0 1.0 | One SVG path per mark, unchanged, from the `simple-icons` package (https://simpleicons.org). Each mark only names the browser that the card is about. |
 | fastify 5.12.8, pg 8.23.1 and their dependencies | the server at run time (`server/node_modules`, not in any zip) | MIT, ISC, BSD-3-Clause | The run time table below lists each package. |
 
 The extension zips contain only code from this repository and the icons in `brand/`. No npm package goes into them.
@@ -32,6 +33,7 @@ The extension zips contain only code from this repository and the icons in `bran
 - The xslop mark and wordmark (`brand/`) are part of this repository. The x in xslop means "crossed out", not the X company.
 - "Community Notes" names a feature of X. The site uses the words only to compare.
 - **GitHub** and the GitHub mark are trademarks of GitHub, Inc. `/download` shows the mark only beside the links to the xslop repository.
+- Chrome, Brave, Vivaldi, Arc, Microsoft Edge, Opera, Firefox and Safari, and their marks, are trademarks of their owners. `/download` shows each mark in one colour only to name the browser of a card. xslop has no relation with these companies.
 
 ## Every package of the three lockfiles
 

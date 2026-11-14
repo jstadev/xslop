@@ -5,7 +5,7 @@
 
 import { detectBrowser, installsFromChromeStore, readBrowserSignals, type BrowserId } from './hero/detect.ts';
 import { request } from './lib/api.ts';
-import { bindCopy, h, req } from './lib/dom.ts';
+import { bindCopy, h, req, spriteIcon } from './lib/dom.ts';
 import { formatBytes } from './lib/format.ts';
 import { describeError } from './lib/messages.ts';
 import { parseLatest, type Download, type Latest } from './lib/schema.ts';
@@ -218,7 +218,7 @@ function hero(detected: BrowserId, list: List, supported: readonly Browser[]): N
   else way = wayFor(detected, list, 'btn-primary');
   const main = way.main.length > 0 ? way.main : [h('a', { class: 'btn btn-quiet', href: '#supported' }, 'See the supported browsers')];
   return [
-    detected === 'unknown' || detected === 'phone-other' ? null : h('p', { class: 'install-detected' }, `You are on ${GUIDES[detected].name}.`),
+    detected === 'unknown' || detected === 'phone-other' ? null : h('p', { class: 'install-detected' }, logo(detected), `You are on ${GUIDES[detected].name}.`),
     way.lead ? h('p', { class: 'dl-now-lead' }, way.lead) : null,
     actions(...main, ...(way.meta ? [way.meta] : [])),
     way.more?.label ? h('p', { class: 'sub-title' }, way.more.label) : null,
@@ -228,6 +228,11 @@ function hero(detected: BrowserId, list: List, supported: readonly Browser[]): N
 
 function fold(label: string, ...children: Node[]): HTMLDetailsElement {
   return h('details', { class: 'dl-fold' }, h('summary', null, h('span', null, label), h('span', { class: 'toggle', 'aria-hidden': 'true' })), ...children);
+}
+
+/** The browser's mark from the page sprite, in the colour of the text beside it. */
+function logo(id: Browser): SVGSVGElement {
+  return spriteIcon(`#br-${id === 'firefox-android' ? 'firefox' : id}`, '0 0 24 24', 'dl-logo');
 }
 
 function card(id: Browser, list: List, detected: BrowserId): HTMLLIElement {
@@ -245,7 +250,7 @@ function card(id: Browser, list: List, detected: BrowserId): HTMLLIElement {
   return h(
     'li',
     { class: yours ? 'dl-card is-yours' : 'dl-card', id: `browser-${id}` },
-    h('div', { class: 'dl-card-head' }, h('h3', { class: 'dl-card-name' }, GUIDES[id].name), yours ? h('span', { class: 'dl-yours' }, 'Your browser') : null),
+    h('div', { class: 'dl-card-head' }, h('h3', { class: 'dl-card-name' }, logo(id), GUIDES[id].name), yours ? h('span', { class: 'dl-yours' }, 'Your browser') : null),
     ...body,
   );
 }

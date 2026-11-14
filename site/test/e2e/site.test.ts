@@ -682,6 +682,18 @@ describe('download', () => {
     }
   });
 
+  test('every browser card and the detected line show the mark of the browser from the page sprite', async () => {
+    const { page, close } = await detected({ userAgent: CHROME_UA });
+    try {
+      const marks = await page.locator('#supported-list > li, #soon-list > li').evaluateAll((els) => els.map((el) => el.querySelector('h3 svg.dl-logo use')?.getAttribute('href')));
+      assert.deepEqual(marks, ['#br-chrome', '#br-brave', '#br-vivaldi', '#br-arc', '#br-edge', '#br-opera', '#br-firefox', '#br-firefox', '#br-safari']);
+      for (const href of new Set(marks)) assert.equal(await page.locator(`symbol${href} path`).count(), 1, `${href} is in the sprite`);
+      assert.equal(await page.locator('#install-now .install-detected svg.dl-logo use').getAttribute('href'), '#br-chrome');
+    } finally {
+      await close();
+    }
+  });
+
   test('the open source section links to the repository and its issues', async () => {
     const { page, close } = await detected({ userAgent: CHROME_UA });
     try {

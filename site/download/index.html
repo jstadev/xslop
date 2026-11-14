@@ -3,10 +3,10 @@
   <head>
     <!--include:head-->
     <title>Download xslop</title>
-    <meta name="description" content="Download the xslop browser extension for Chrome, Edge, Brave, Opera, Vivaldi, Arc, Firefox and Safari." />
+    <meta name="description" content="Download the xslop browser extension for Chrome, Brave, Vivaldi, Arc, Edge and Opera. Firefox and Safari are coming soon. The code is open source on GitHub." />
     <link rel="canonical" href="https://x-slop.com/download" />
     <meta property="og:title" content="Download xslop" />
-    <meta property="og:description" content="Download the xslop browser extension for Chrome, Edge, Brave, Opera, Vivaldi, Arc, Firefox and Safari." />
+    <meta property="og:description" content="Download the xslop browser extension for Chrome, Brave, Vivaldi, Arc, Edge and Opera. Firefox and Safari are coming soon. The code is open source on GitHub." />
     <meta property="og:url" content="https://x-slop.com/download" />
     <link rel="preload" href="../../brand/fonts/mona-sans-latin-wdth-normal.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="stylesheet" href="../src/styles/site.css" />
@@ -14,6 +14,14 @@
   </head>
   <body>
     <!--include:sprite-->
+    <svg class="sprite" aria-hidden="true" focusable="false">
+      <defs>
+        <!-- The GitHub mark: Octicons mark-github-16 19.42.0, MIT licence, Copyright (c) 2026 GitHub Inc. (THIRD_PARTY.md). -->
+        <symbol id="gh-mark" viewBox="0 0 16 16">
+          <path fill="currentColor" d="M6.766 11.328c-2.063-.25-3.516-1.734-3.516-3.656 0-.781.281-1.625.75-2.188-.203-.515-.172-1.609.063-2.062.625-.078 1.468.25 1.968.703.594-.187 1.219-.281 1.985-.281.765 0 1.39.094 1.953.265.484-.437 1.344-.765 1.969-.687.218.422.25 1.515.046 2.047.5.593.766 1.39.766 2.203 0 1.922-1.453 3.375-3.547 3.64.531.344.89 1.094.89 1.954v1.625c0 .468.391.734.86.547C13.781 14.359 16 11.53 16 8.03 16 3.61 12.406 0 7.984 0 3.563 0 0 3.61 0 8.031a7.88 7.88 0 0 0 5.172 7.422c.422.156.828-.125.828-.547v-1.25c-.219.094-.5.156-.75.156-1.031 0-1.64-.562-2.078-1.609-.172-.422-.36-.672-.719-.719-.187-.015-.25-.093-.25-.187 0-.188.313-.328.625-.328.453 0 .844.281 1.25.86.313.452.64.655 1.031.655s.641-.14 1-.5c.266-.265.47-.5.657-.656" />
+        </symbol>
+      </defs>
+    </svg>
 
     <a class="skip" href="#main">Skip to content</a>
 
@@ -24,16 +32,38 @@
       <!--include:theme-toggle-->
     </header>
 
-    <main id="main">
-      <section class="xrow" id="install" aria-labelledby="install-title">
-        <span class="xrow-avatar" aria-hidden="true"><svg viewBox="0 0 32 32"><use href="#xs-mark" /></svg></span>
-        <div class="xrow-main">
-          <p class="xrow-who"><span class="post-name" translate="no">xslop</span> <span class="install-version" id="install-version" aria-live="polite">Loading the latest version…</span></p>
-          <h1 id="install-title" class="h2">Download <span translate="no">xslop</span></h1>
-          <div class="install-now" id="install-now"></div>
-          <noscript><p class="install-note">The download buttons need JavaScript, because they read the newest version from the server. Turn it on, or open /downloads/latest.json and go to the url of the zip for your browser.</p></noscript>
-          <div class="install-others" id="install-others"></div>
-        </div>
+    <main id="main" class="dl">
+      <section class="dl-hero" id="install" aria-labelledby="install-title">
+        <svg class="dl-mark" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><use href="#xs-mark" /></svg>
+        <h1 id="install-title" class="dl-title">Download <span translate="no">xslop</span></h1>
+        <p class="install-version" id="install-version" aria-live="polite">Loading the latest version…</p>
+        <p class="dl-lead">The browser extension for x.com. Click the x on a slop post or reply, and that account is hidden for you and muted on X at once.</p>
+        <div class="dl-now" id="install-now" aria-busy="true"></div>
+        <noscript><p class="install-note">The download buttons need JavaScript, because they read the newest version from the server. Turn it on, or open /downloads/latest.json and go to the url of the zip for your browser.</p></noscript>
+      </section>
+
+      <section class="dl-section dl-browsers" id="supported" aria-labelledby="supported-title">
+        <h2 id="supported-title" class="dl-h2">Supported browsers</h2>
+        <p class="dl-sub">These browsers run xslop today. It stays installed after a restart.</p>
+        <ul class="dl-cards" id="supported-list"></ul>
+      </section>
+
+      <section class="dl-section dl-browsers dl-soon" id="soon" aria-labelledby="soon-title">
+        <h2 id="soon-title" class="dl-h2">Coming soon</h2>
+        <p class="dl-sub">These browsers install add-ons from their own store, and the xslop listing is not live there yet. Each card says what you can do until then.</p>
+        <ul class="dl-cards" id="soon-list"></ul>
+      </section>
+
+      <section class="dl-section dl-oss" id="open-source" aria-labelledby="oss-title">
+        <p class="dl-oss-repo"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><use href="#gh-mark" /></svg><span translate="no">jstadev/xslop</span></p>
+        <h2 id="oss-title" class="dl-h2">Open source</h2>
+        <p class="dl-sub">xslop is open source under the MIT licence. The code of the extension, the server and this site is on GitHub. Read it before you install, download the zips from GitHub, report a bug, or star the repository.</p>
+        <p class="dl-oss-actions">
+          <a class="btn btn-primary" href="https://github.com/jstadev/xslop" rel="noopener noreferrer"><svg class="btn-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><use href="#gh-mark" /></svg>Star on GitHub</a>
+          <a class="btn btn-quiet" href="https://github.com/jstadev/xslop/releases/latest" rel="noopener noreferrer">Download from GitHub</a>
+          <a class="btn btn-quiet" href="https://github.com/jstadev/xslop" rel="noopener noreferrer">Read the code</a>
+          <a class="btn btn-quiet" href="https://github.com/jstadev/xslop/issues" rel="noopener noreferrer">Report a bug</a>
+        </p>
       </section>
     </main>
 

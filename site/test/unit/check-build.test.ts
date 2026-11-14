@@ -4,11 +4,11 @@ import { allowedLink, FIRST_PERSON, HTML_SINK, htmlProblems, stringLiterals, vis
 
 const page = (body: string) => `<!doctype html><html><head><script type="module" src="/assets/a.js"></script></head><body>${body}</body></html>`;
 
-test('allowedLink permits only x.com profiles, the two stores, the Clankwall home page and the site itself', () => {
-  for (const ok of ['https://x.com/dillon_mulroy', 'https://chromewebstore.google.com/detail/x', 'https://addons.mozilla.org/firefox/addon/xslop/', 'https://x-slop.com/og.png', 'https://clankwall.vogel.dev/']) {
+test('allowedLink permits only x.com profiles, the two stores, the Clankwall home page, the xslop repository and the site itself', () => {
+  for (const ok of ['https://x.com/dillon_mulroy', 'https://chromewebstore.google.com/detail/x', 'https://addons.mozilla.org/firefox/addon/xslop/', 'https://x-slop.com/og.png', 'https://clankwall.vogel.dev/', 'https://github.com/jstadev/xslop', 'https://github.com/jstadev/xslop/issues', 'https://github.com/jstadev/xslop/releases/latest']) {
     assert.equal(allowedLink(ok), true, ok);
   }
-  for (const bad of ['https://x.com/i/lists/2116659176894071283', 'https://x.com/a?b=1', 'http://x.com/abc', 'https://evil.example/', 'https://fonts.googleapis.com/css', 'https://user:pw@x.com/abc', 'https://x.com.evil.example/abc', 'https://clankwall.vogel.dev/api/accounts.ndjson', 'https://clankwall.vogel.dev.evil.example/']) {
+  for (const bad of ['https://x.com/i/lists/2116659176894071283', 'https://x.com/a?b=1', 'http://x.com/abc', 'https://evil.example/', 'https://fonts.googleapis.com/css', 'https://user:pw@x.com/abc', 'https://x.com.evil.example/abc', 'https://clankwall.vogel.dev/api/accounts.ndjson', 'https://clankwall.vogel.dev.evil.example/', 'https://github.com/jstadev/other', 'https://github.com/jstadev/xslop/archive/main.zip', 'https://github.com/jstadev/xslop/releases/download/v1/x.zip', 'https://github.com/jstadev/xslop?tab=x', 'http://github.com/jstadev/xslop', 'https://github.com.evil.example/jstadev/xslop']) {
     assert.equal(allowedLink(bad), false, bad);
   }
 });

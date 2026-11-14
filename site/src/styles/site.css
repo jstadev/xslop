@@ -461,20 +461,6 @@ main {
   background-image: url("../img/chrome-web-store.png");
 }
 
-/* In the Install step the badge sits in the free space at the foot of the box, out of the flow, so its arrival moves
- * nothing. Side by side the Hide step sets the height of the row and leaves that space. Stacked, there is none. */
-.flood-step .store-badge {
-  position: absolute;
-  bottom: var(--space-5);
-  left: var(--space-5);
-}
-
-@media (max-width: 48rem) {
-  .flood-step .store-badge {
-    display: none;
-  }
-}
-
 /* The xslop button as the extension draws it on x.com: the mark in its blue circle, where the text says "Hit the". */
 .lead-key {
   position: relative;
@@ -1573,8 +1559,59 @@ main {
   overflow-wrap: anywhere;
 }
 
-/* Install */
+/* Download page. The mark, the title and the visitor's browser stand in one centred column. Below it, a card for each
+ * browser that runs xslop today, the quieter cards of the browsers that wait for a store, and the code on GitHub.
+ * On a wide screen the flood of slop cards from the landing page (its poster render) frames the hero. */
+.dl {
+  --dl-glow: 0 0 0 1px var(--color-accent), 0 0 40px color-mix(in oklch, var(--color-accent) 30%, transparent);
+  padding-bottom: var(--space-16);
+}
+
+.dl-hero {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  padding: var(--space-12) var(--space-4) 0;
+  text-align: center;
+  isolation: isolate;
+}
+
+/* The render shows only beside the column of text, and fades out before the cards. */
+@media (min-width: 64rem) {
+  .dl-hero::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 -6rem;
+    z-index: -1;
+    background: var(--poster) center 35% / cover no-repeat;
+    -webkit-mask-image: linear-gradient(to right, #000, transparent calc(50% - 26rem), transparent calc(50% + 26rem), #000), linear-gradient(#000 55%, transparent);
+    mask-image: linear-gradient(to right, #000, transparent calc(50% - 26rem), transparent calc(50% + 26rem), #000), linear-gradient(#000 55%, transparent);
+    -webkit-mask-composite: source-in;
+    mask-composite: intersect;
+  }
+}
+
+/* The mark is the one glow on the page. */
+.dl-mark {
+  width: 4.5rem;
+  height: 4.5rem;
+  color: var(--xs-logo);
+  filter: drop-shadow(0 0 22px color-mix(in oklch, var(--xs-logo) 55%, transparent));
+}
+
+.dl-title {
+  margin-top: var(--space-5);
+  font-size: var(--text-display);
+  font-weight: var(--weight-display);
+  font-stretch: var(--stretch-display);
+  line-height: 0.95;
+  letter-spacing: var(--tracking-display);
+}
+
+/* The line spans the column, so its box stays in place when the text changes. */
 .install-version {
+  justify-self: stretch;
+  margin-top: var(--space-3);
   color: var(--color-text-muted);
   font-size: var(--text-sm);
   font-variant-numeric: tabular-nums;
@@ -1584,10 +1621,25 @@ main {
   color: var(--color-warn);
 }
 
-/* The download list loads after the page: the two blocks hold their place, so the footer does not jump. */
-.install-now {
-  min-height: 28rem;
+.dl-lead {
+  max-width: 32em;
   margin-top: var(--space-4);
+  font-size: var(--text-lg);
+  line-height: var(--leading-snug);
+}
+
+/* The visitor's browser: a pane of glass with the accent edge. The loading state draws the same blocks, so the answer moves nothing. */
+.dl-now {
+  width: min(100%, 46rem);
+  margin-top: var(--space-8);
+  padding: var(--space-6);
+  border-radius: var(--radius-card);
+  background: var(--glass);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  box-shadow: var(--dl-glow);
+  text-align: left;
+  animation: rise-in var(--dur-slow) var(--ease-out) backwards;
 }
 
 .install-detected {
@@ -1596,11 +1648,18 @@ main {
   font-stretch: var(--stretch-heading);
 }
 
+.dl-now-lead {
+  max-width: 40em;
+  margin-top: var(--space-2);
+}
+
+/* The row holds the height of the store badge, so a badge and a button take the same space. */
 .install-actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-3) var(--space-4);
+  min-height: 48px;
   margin-top: var(--space-4);
 }
 
@@ -1612,25 +1671,14 @@ main {
   font-size: var(--text-sm);
 }
 
+.dl-meta.is-pending {
+  visibility: hidden;
+}
+
 .sha {
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   overflow-wrap: anywhere;
-}
-
-.install-steps {
-  margin-top: var(--space-5);
-  padding-left: 1.5em;
-}
-
-.install-steps li {
-  padding-left: var(--space-1);
-  margin-top: var(--space-2);
-}
-
-.install-steps li::marker {
-  color: var(--color-accent);
-  font-weight: var(--weight-strong);
 }
 
 .install-note {
@@ -1639,21 +1687,175 @@ main {
   color: var(--color-text-muted);
 }
 
-.install-others {
-  min-height: 31rem;
-  margin-top: var(--space-6);
+.dl-section {
+  width: min(100% - 2 * var(--space-4), 76rem);
+  margin: var(--space-20) auto 0;
 }
 
-.install-other {
+.dl-h2 {
+  font-size: var(--text-h2);
+  font-weight: var(--weight-display);
+  font-stretch: var(--stretch-display);
+  line-height: 1;
+  letter-spacing: var(--tracking-display);
+}
+
+.dl-sub {
+  max-width: 40em;
+  margin-top: var(--space-3);
+  color: var(--color-text-muted);
+}
+
+.dl-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 19rem), 1fr));
+  gap: var(--space-4);
+  margin-top: var(--space-6);
+  list-style: none;
+  animation: rise-in var(--dur-slow) var(--ease-out) 80ms backwards;
+}
+
+.dl-card {
+  min-width: 0;
+  padding: var(--space-5);
+  border: var(--rule) solid var(--edge-soft);
+  border-radius: var(--radius-card);
+  background: var(--glass);
+  box-shadow: var(--shadow-soft);
+  transition: border-color var(--dur-fast) var(--ease-out);
+}
+
+@media (hover: hover) {
+  .dl-card:hover {
+    border-color: var(--color-accent);
+  }
+}
+
+.dl-card.is-yours {
+  border-color: var(--color-clear);
+  box-shadow: var(--dl-glow);
+}
+
+.dl-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-3);
+}
+
+.dl-card-name {
+  font-size: var(--text-xl);
+  font-weight: var(--weight-display);
+  font-stretch: var(--stretch-display);
+  line-height: var(--leading-snug);
+}
+
+.dl-yours {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-pill);
+  background: color-mix(in oklch, var(--color-accent) 16%, var(--color-clear));
+  box-shadow: inset 0 0 0 1px var(--edge-soft);
+  color: var(--color-accent);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-strong);
+}
+
+.dl-card-lead {
+  margin-top: var(--space-3);
+  color: var(--color-text-muted);
+}
+
+/* Coming soon: no fill and a dashed edge. The visitor's own browser keeps the accent edge. */
+.dl-soon .dl-card {
+  border-style: dashed;
+  border-color: var(--color-line-strong);
+  background: var(--color-clear);
+  box-shadow: none;
+}
+
+.dl-soon .dl-card.is-yours {
+  border-color: var(--color-accent);
+}
+
+.dl-soon .dl-card-name {
+  font-size: var(--text-lg);
+}
+
+.dl-fold {
+  margin-top: var(--space-4);
   border-top: var(--rule) solid var(--color-line);
 }
 
-.install-other[open] {
-  padding-bottom: var(--space-4);
+.dl-fold[open] {
+  padding-bottom: var(--space-2);
+}
+
+.dl-oss {
+  display: grid;
+  justify-items: center;
+  padding-top: var(--space-16);
+  border-top: var(--rule) solid var(--color-line);
+  text-align: center;
+}
+
+.dl-oss-repo {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+}
+
+.dl-oss-repo svg {
+  width: 1.5rem;
+  height: 1.5rem;
+  color: var(--color-text);
+}
+
+.dl-oss .dl-h2 {
+  margin-top: var(--space-4);
+}
+
+.dl-oss-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-3);
+  margin-top: var(--space-6);
+}
+
+.btn-icon {
+  flex: none;
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
+/* The browser may paint once before the script runs. Until the script draws the visitor's browser, only the head of the
+ * page shows; the blocks below appear with the first drawing, so nothing on screen moves. Without JavaScript they show at once. */
+@media (scripting: enabled) {
+  .dl-now:empty,
+  .dl:has(.dl-now:empty) > :not(.dl-hero),
+  body:has(.dl-now:empty) > .site-foot {
+    display: none;
+  }
+}
+
+/* The download page is wider than the thread column of the other pages, and its footer follows it. */
+.dl ~ .site-foot {
+  width: min(100% - 2 * var(--space-4), 76rem);
+  max-width: none;
+  padding: var(--space-8) 0 var(--space-12);
+  border: 0;
+  border-top: var(--rule) solid var(--color-line);
 }
 
 /* A question or a browser in a list: each is a collapsed line, like a hidden reply. */
-.install-other summary,
+.dl-fold summary,
 .faq-list summary {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -1668,7 +1870,7 @@ main {
   overflow-wrap: anywhere;
 }
 
-.install-other summary::-webkit-details-marker,
+.dl-fold summary::-webkit-details-marker,
 .faq-list summary::-webkit-details-marker {
   display: none;
 }
@@ -1693,7 +1895,8 @@ details[open] > summary .toggle::before {
 }
 
 /* The appeal in three steps: numbered dots joined by a short line, like the rows of a thread. */
-.appeal-path {
+.appeal-path,
+.install-steps {
   display: grid;
   gap: var(--space-3);
   margin-top: var(--space-4);
@@ -1705,7 +1908,8 @@ details[open] > summary .toggle::before {
   margin-top: var(--space-3);
 }
 
-.appeal-path li {
+.appeal-path li,
+.install-steps li {
   position: relative;
   display: grid;
   grid-template-columns: 1.75em minmax(0, 1fr);
@@ -1714,7 +1918,8 @@ details[open] > summary .toggle::before {
   counter-increment: step;
 }
 
-.appeal-path li::before {
+.appeal-path li::before,
+.install-steps li::before {
   content: counter(step);
   display: grid;
   place-items: center;
@@ -1731,7 +1936,8 @@ details[open] > summary .toggle::before {
   line-height: 1;
 }
 
-.appeal-path li:not(:last-child)::after {
+.appeal-path li:not(:last-child)::after,
+.install-steps li:not(:last-child)::after {
   content: "";
   position: absolute;
   top: 1.75em;
@@ -2283,7 +2489,9 @@ details[open] > summary .toggle::before {
   /* These need a request to the API or a script, so without JS they do not show. */
   .pulse,
   .bridge-toggle,
-  .appeal-work {
+  .appeal-work,
+  .dl-now,
+  .dl-browsers {
     display: none;
   }
 

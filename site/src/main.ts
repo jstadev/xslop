@@ -6,7 +6,6 @@ import { initDrain } from './hero/drain.ts';
 import { initThread } from './hero/thread.ts';
 import { initSwapWord } from './hero/swap-word.ts';
 import { initStats } from './stats.ts';
-import { initStoreLinks } from './store-link.ts';
 
 /** These sections moved to their own pages. A link with the old anchor (an old extension, a bookmark) still lands in the right place. */
 const MOVED = new Map([
@@ -22,7 +21,7 @@ const moved = MOVED.get(location.hash);
 if (moved) {
   location.replace(`${moved}${location.search}`);
 } else {
-  for (const init of [initThread, initHero, initSwapWord, initBridge, initDrain, initStats, initStoreLinks]) {
+  for (const init of [initThread, initHero, initSwapWord, initBridge, initDrain, initStats]) {
     try {
       init();
     } catch (err) {

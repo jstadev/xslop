@@ -539,7 +539,8 @@ your phone hides them too.
 - Tests: `npm test` = typecheck/lint of site scripts + a build check that no
   em-dash, no "we/our/us" appears in visible copy and no external URL appears
   in `src`/`href` except links to x.com profiles, the Chrome Web Store,
-  addons.mozilla.org and the home page of Clankwall (`https://clankwall.vogel.dev/`). `npm run test:e2e`: Playwright renders the built page at
+  addons.mozilla.org, the home page of Clankwall (`https://clankwall.vogel.dev/`) and the repository
+  `https://github.com/jstadev/xslop`, its `/issues` and its `/releases/latest`. `npm run test:e2e`: Playwright renders the built page at
   390 px and 1440 px, checks no horizontal scroll, runs the design gate.
 
 ## 9. Environment variables (server)
@@ -656,7 +657,8 @@ The best UX on X, easy from the first minute. The button sits in X's action row 
 - The landing page ends with the footer. It has no section nav and no long text sections.
 - The moved sections are pages, linked from the footer of every page: `/how-it-works`, `/rules`, `/download` (the extension downloads and install steps), `/check` (handle lookup and appeal, `?appeal=<handle>` is kept in the link), `/privacy`, `/questions`. `/sloppers` stays. Source: `site/<name>/index.html`; the shared head, mark and footer are `site/partials/*.html`, included with `<!--include:name-->` by the Vite plugin in `site/vite.config.ts`.
 - The server serves each page at `/<name>` and `/<name>/` (`SITE_PAGES` in `server/src/http/static.ts`), `no-cache`, with the HTML headers.
-- The Install buttons on the landing page point to `/download`. An old link with a moved anchor (`/#appeal`, `/#install`, `/#how`, `/#rules`, `/#privacy`, `/#faq`) is redirected by `site/src/main.ts`, with its query string. The extension 1.1.0 popup and onboarding still use `/#appeal` and rely on this.
+- Every Install link on the landing page points to `/download`, in every browser, also when `/downloads/latest.json` names a store listing (2026-11-14). The landing page has no store badge and does not read latest.json. An old link with a moved anchor (`/#appeal`, `/#install`, `/#how`, `/#rules`, `/#privacy`, `/#faq`) is redirected by `site/src/main.ts`, with its query string. The extension 1.1.0 popup and onboarding still use `/#appeal` and rely on this.
+- `/download` (2026-11-14), top to bottom: a hero with the mark, the title, the version from latest.json, one line on what the extension does and the visitor's browser (`site/src/hero/detect.ts`) with its main action, its zip file line with the SHA-256 and its steps; then "Supported browsers", one card each for Chrome, Brave, Vivaldi, Arc, Edge and Opera (the official Chrome Web Store badge for the first four only when latest.json has `chromeStoreUrl`, else the Chrome zip with the developer-mode steps, which stays the second way under the badge); then "Coming soon" in quieter cards: Firefox (the temporary zip under "Try it now"), Firefox for Android (install on a computer and turn on mute sync) and Safari (the Xcode build under "Build it yourself on a Mac"); then "Open source": the MIT licence and the buttons "Star on GitHub", "Read the code" and "Report a bug" (the GitHub mark is Octicons `mark-github`, in the page). When latest.json has `firefoxUrl`, both Firefox cards move to the supported browsers with the store button, from the data alone. The card of the visitor's browser says "Your browser". The page draws the same blocks while latest.json loads, so the answer moves nothing; a failed list keeps the cards and steps and says to reload. `site/src/install.ts` holds the browser data and steps.
 - The hero switch (`#hero-switch`) flips every 4 seconds while the hero is on screen, until the visitor presses a key or a pointer. The landing page has no Pause button; the scene always plays.
 
 ### 12.11 Landing page and /sloppers polish (2026-11-10)

@@ -2,7 +2,8 @@
 // - any em-dash (U+2014) in built files or sources,
 // - first-person company words (we, our, us, ours, ourselves) in visible copy, accessible labels and script strings
 //   (the quoted X replies in p.rcard-text are other people's words and are exempt, and so is ORDERED_NOTE),
-// - external URLs in src/href other than x.com profiles, the Chrome Web Store, addons.mozilla.org and the Clankwall home page,
+// - external URLs in src/href other than x.com profiles, the Chrome Web Store, addons.mozilla.org, the Clankwall home page and
+//   the xslop repository and its issues on GitHub,
 //   read the way the browser reads them (tabs and newlines dropped, a backslash as a slash), and character references in URL
 //   attributes,
 // - an external link without rel="noopener noreferrer",
@@ -27,6 +28,8 @@ const SELF = 'https://x-slop.com';
 const PAGES = ['how-it-works', 'rules', 'download', 'check', 'privacy', 'questions'];
 /** XML namespaces are identifiers that a browser never fetches. Three.js also creates its canvas in the XHTML namespace. */
 const XML_NAMESPACES = ['http://www.w3.org/2000/svg', 'http://www.w3.org/1999/xhtml'];
+/** The source code of xslop and its bug reports (the open source part of /download). */
+const REPOSITORY = ['/jstadev/xslop', '/jstadev/xslop/issues', '/jstadev/xslop/releases/latest'];
 
 const isSelf = (url: string): boolean => url === SELF || url.startsWith(`${SELF}/`);
 
@@ -42,6 +45,7 @@ export function allowedLink(url: string): boolean {
   if (u.protocol !== 'https:' || u.username || u.password) return false;
   if (u.hostname === 'x.com') return /^\/[A-Za-z0-9_]{1,15}$/.test(u.pathname) && !u.search && !u.hash;
   if (u.hostname === 'clankwall.vogel.dev') return u.pathname === '/' && !u.search && !u.hash;
+  if (u.hostname === 'github.com') return REPOSITORY.includes(u.pathname) && !u.search && !u.hash;
   return u.hostname === 'chromewebstore.google.com' || u.hostname === 'addons.mozilla.org';
 }
 

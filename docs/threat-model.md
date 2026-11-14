@@ -9,7 +9,7 @@ This file names who attacks the global list and why, what each attacker can spen
 
 ## The base rule
 
-An identity costs nothing. An install costs one proof of work. A network is the /24 (IPv4) or /48 (IPv6) of the address at registration, and another address costs little. So nothing that costs nothing decides anything (SPEC 13.1). Every automatic change of the published list needs both:
+An identity costs nothing. An install costs one proof of work. A network is the IPv4 /24 of the address at registration. An IPv6 form that embeds an IPv4 (mapped, translated, compatible, 6to4, Teredo or NAT64) uses that IPv4 /24. Any other IPv6 address uses the /48 (SPEC 15.1). Another address in another /24 costs little. So nothing that costs nothing decides anything (SPEC 13.1). Every automatic change of the published list needs both:
 
 - **Standing**: networks with earned, loseable standing vouch for it.
 - **Server facts**: the server itself checked that the account exists on X and that it wrote the posts that the votes name.
@@ -27,6 +27,8 @@ Everything else waits in the review queue for a person.
 | Reputation | Votes that agree with admin decisions | Standing needs 0.6 or more. A wrong vote is a penalty: it ends the standing. |
 | Admin access | The admin password, the TOTP code, or the cookie of a live session | Every admin action. |
 | A fact source | Control of the answers of `cdn.syndication.twimg.com` or `api.fxtwitter.com` | The identity, evidence and reply timing that the server reads. |
+
+One IPv4 /24 is still one network when the client connects by 6to4, Teredo or NAT64. The price of another network stays an address in another /24.
 
 ## 1. Smear: list an account that is not slop
 
@@ -87,6 +89,8 @@ Everything else waits in the review queue for a person.
 - Behaviour (reply timing) never changes a status (13.3), and the engine reads only sightings that the server verified (13.6). Invented sightings change nothing.
 - Votes of installs without standing alone start no request to the fact sources, except through step 3 of the work order, which takes at most 20 pending accounts a run that have a request left, and asks each post once in a run (13.6, 13.12). Step 1 needs an anchor. In each step, the job takes accounts round robin by sponsor network, at most 3 per sponsor. Steps 1 to 3 take at most 80 of the 120 accounts of a run and start no account after 160 requests, so the weekly check of listed accounts always runs (13.10 item 7, 13.12).
 - The limits per install, per network and for all networks of SPEC 12.12.
+- When a rate-limit map is full, a new key does not reset a key that is still limited. The new key is refused (SPEC 15.2).
+- `migrate` locks per schema (`hashtext(current_schema())`), so one channel cannot hold the migrations of the other (SPEC 15.6).
 
 **Risks that stay, with their price.**
 - Free installs on many networks can fill the `pending` queue with any number of accounts. Price: one proof of work per install. The cost falls on the time of the admin, not on the list.
@@ -105,6 +109,8 @@ Everything else waits in the review queue for a person.
 - The cookie `__Host-xs_admin` is `HttpOnly`, `Secure` and `SameSite=Strict`. The database keeps only its SHA-256. Every change needs the `x-csrf` value and the `Origin` of the site (5.6).
 - A session ends after 30 minutes without a request and after 12 hours (13.8).
 - Admin changes have a limit of 30 a minute per address. At most 2 password checks run at a time (12.13).
+- Password checks of every network share 30 per 15 minutes. The bucket refills with time. It is not a lock that stays shut until a login succeeds. A valid unused TOTP code does not spend it (SPEC 15.2).
+- The console strips bidi overrides and control characters from the text it shows, so a name or an appeal cannot make a change read as the opposite change (SPEC 15.3).
 - Every change writes one `admin_log` row with the state before, in the same transaction (13.8). The maintainer sees each change and the state to restore.
 - `ban-voters` refuses an account whose slop voters that are not banned are on more than 10 networks (409 `crowd_too_large`). The console shows that count on the button and turns the button off above 10 (13.12).
 - A stolen session reads no address (14.1, 14.2). No admin answer holds an `ip_hash`, an address, a post text or a cookie. A network shows only as its label: the first 8 hex characters of SHA-256 of the salted `ip_hash`. Without the salt, the label gives no address back. The `events` and `job_runs` tables keep no `ip_hash`. The score job deletes events after 400 days and job runs after 30 days. Each `admin_log` row of a change also keeps the answer in `after`, so the maintainer sees the result of each change of a thief.
@@ -112,6 +118,8 @@ Everything else waits in the review queue for a person.
 **Risks that stay, with their price.**
 - Inside a live session, the thief can do every admin action, 30 a minute. A trust gives an install standing, so it also acts after the session ends. Price: the browser of the admin, or the password and a fresh code. Recovery: read `GET /api/admin/log`, restore each state from `before`, remove every trust that the log shows, end every session, and change the password hash and the TOTP secret.
 - Without `XSLOP_ADMIN_TOTP`, the password alone opens a session.
+- Without `XSLOP_ADMIN_TOTP`, a flood of wrong passwords holds the shared budget of password checks empty. A login waits until the flood stops, then at most 30 seconds. Price: many networks, for as long as the flood continues.
+- A guesser who already has the current code does not spend the shared budget. The guesser still has 5 failures per network per 15 minutes and 2 checks at a time. Price: the current code.
 - `admin_log` records actions through the API. Access to the database is outside its view.
 
 ## 5. A hostile co-tenant on a shared address
@@ -143,6 +151,7 @@ Everything else waits in the review queue for a person.
 - Behaviour never changes a status (13.3). A false reply time changes no status.
 - A false follower count can only hold an account for a person (gate `protected`). It never lists one.
 - `gone` takes no account off the list (13.10 item 10). `moved` needs the embed answer of X for a proven post of the stored X id, or two checks on different days that name the same other X id. A check that names another X id stores no name, follower count or avatar of it.
+- An avatar URL is fetched only when it is one file under `/profile_images/` on `pbs.twimg.com`, with no percent-encoding and no `..` segment. The stored display name has control characters, bidi marks and invisible format characters removed (SPEC 15.4).
 
 **Risks that stay, with their price.**
 - Profile facts (the X id of a handle, the follower count, a missing account) come from FxTwitter alone. Post facts come from the embed answer of X, and from FxTwitter when the embed answer fails. A rename needs both sources (13.11); the other profile facts have no second opinion.
@@ -150,6 +159,19 @@ Everything else waits in the review queue for a person.
 - A rename moves the state of row A to handle B when both sources say that B now has the X id of A (13.11). False answers of both sources list B with the state of A, with no standing involved.
 - The first check of an account with no stored X id stores the id that the source gives. The list carries that id, and mute sync mutes by id (13.8). A false id makes mute sync mute the wrong account.
 - Price: control of the answers that the job reads for one handle or one post. The embed source belongs to X. FxTwitter is a public service of a third party, so a fault or a change there is the cheaper path. A rename already needs both sources. A rule that both sources must agree before `moved` or a new X id would raise the price to both sources.
+
+## 7. The extension on x.com
+
+**Why.** A page script aims a mark at an account you did not choose, or a compromised list mutes accounts on your X account.
+
+**Rules that stop it.**
+- A page script that inserts another profile link in the name line cannot aim the mark at that link. The author is the visible `@handle` that matches the link path. A hidden link is ignored. The outer avatar, when it has a profile path, must agree (SPEC 15.5).
+- A click that the page script fires is not trusted, and the button lives in a closed shadow root.
+- A resent vote after a lost answer carries the same action number, so an undo in between stays undone (SPEC 15.5).
+
+**Risks that stay, with their price.**
+- A compromised list can still mute by the id it sends, when mute sync is on. The price is the paced cap: at most 40 mutes a day, at least 90 s apart, then a stop. An instant click mute is by screen name and does not follow that id.
+- A link that you cannot see still counts when it is hidden by another method (for example `opacity: 0`). Two disagreeing links then give no button. Price: a crafted page and a hide method outside `hidden`, `display:none` and `visibility:hidden`.
 
 ## Out of scope
 

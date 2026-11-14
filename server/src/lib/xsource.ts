@@ -20,9 +20,9 @@ const USER_AGENT = 'xslop-xfacts/2';
 const ID_RE = /^[0-9]{1,20}$/;
 const MAX_FOLLOWERS = 2_147_483_647;
 const MAX_NAME_LENGTH = 100;
-// Controls and bidi overrides can disguise a display name inside the surrounding text.
-const NAME_CONTROLS = /[\u0000-\u001f\u007f-\u009f\u200e\u200f\u2028\u2029\u202a-\u202e\u2066-\u2069]/g;
-const AVATAR_PATH_RE = /^\/profile_images\/[0-9]{1,30}\/[A-Za-z0-9_.%~-]{1,120}\.(?:jpe?g|png|webp)$/i;
+// Controls, bidi marks and invisible format characters can disguise a display name inside the surrounding text.
+const NAME_CONTROLS = /[\u0000-\u001f\u007f-\u009f\u061c\u200b-\u200f\u2028\u2029\u202a-\u202e\u2060-\u2069\ufeff]/g;
+const AVATAR_PATH_RE = /^\/profile_images\/[0-9]{1,30}\/[A-Za-z0-9_.~-]{1,120}\.(?:jpe?g|png|webp)$/i;
 const AVATAR_SIZE_RE = /_(?:normal|bigger|mini|[0-9]{2,4}x[0-9]{2,4})(?=\.[a-z]+$)/i;
 const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
@@ -86,7 +86,8 @@ export function avatarUrlOf(raw: unknown): string | null {
     return null;
   }
   if (url.protocol !== 'https:' || url.hostname !== AVATAR_HOST || url.port !== '' || url.username !== '' || url.password !== '') return null;
-  if (url.search !== '' || !AVATAR_PATH_RE.test(url.pathname)) return null;
+  // A percent-encoded dot or a ".." segment would fetch a path outside profile_images on the same host.
+  if (url.search !== '' || url.pathname.includes('%') || url.pathname.includes('..') || url.pathname.includes('\\') || !AVATAR_PATH_RE.test(url.pathname)) return null;
   return `https://${AVATAR_HOST}${url.pathname.replace(AVATAR_SIZE_RE, '_x96')}`;
 }
 

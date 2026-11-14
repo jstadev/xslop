@@ -1125,3 +1125,37 @@ Goal: the maintainer reads the state of the whole system and the reason for each
 - **Review, Appeals, Accounts, Installs**: the views of before, with the same writes and the same confirm step, plus: each row opens its account or install page, each column header has its definition, the queue note says what the queue holds and what a decision does.
 - Kept from before: the two-click confirm on every write (first click arms for 4 s and names what the second click sends); `x-csrf` and Origin on writes; one live request per view (a newer one aborts the older); on logout and on a session end the console aborts its requests and empties every view, the user name and the counts; keyboard keys (numbers switch views, `/` focuses the filter, `r` reloads); below 48rem each table row shows as label and value lines and nothing scrolls sideways; the CSP of 5.7 (no inline script or style attribute in HTML, no CDN); no new dependency; the text rules of `CONTRIBUTING.md` (you, no we, no em-dash).
 - Times show as relative text with the full local time on hover and focus. Numbers use `formatCount`. Empty states say what is empty and why.
+
+## 15. Security round 4 (2026-11-14). Wins over every earlier section.
+
+### 15.1 Networks
+
+- The IP hash prefix of 5.1 is the IPv4 /24 of the client. An IPv6 address uses the embedded IPv4 /24 when it is IPv4-mapped (`::ffff:0:0/96`), IPv4-translated (`::ffff:0:0:0/96`), IPv4-compatible (except `::` and `::1`), 6to4 (`2002::/16`), Teredo (`2001:0::/32`, the client address with the obfuscation removed), or NAT64 (`64:ff9b::/96` or `64:ff9b:1::/48`). Any other IPv6 address uses the /48.
+- A zone id is ignored. Upper case, leading zeros, a compressed form, and a dotted quad or a hex spelling of one address are one network. A leading zero in an IPv4 octet is decimal.
+
+### 15.2 Admin login and rate limits
+
+- All networks together share 30 password checks per 15 minutes (`adminLoginGlobal`, one key). The bucket refills with time. A successful login returns the check it took. A 429 from this bucket spends no scrypt and returns the per-network token.
+- When `XSLOP_ADMIN_TOTP` is set, a code for the current step that has not been used does not spend this bucket, so a flood of wrong passwords cannot keep the admin out.
+- Rate limit table of 5.8, new row: admin login, all networks, 30 password checks/15 min.
+- A full limiter drops its oldest key only when that key no longer pays for its limit: a token bucket that has refilled, or a sliding limit under its event limit. A key that is still limited stays. The new key is refused and is not stored.
+
+### 15.3 Admin console text
+
+- The console strips bidi overrides and C0 and C1 control characters from text it shows: names, appeals, job errors, history values and the raw before and after JSON. Newline and tab stay.
+
+### 15.4 Fact source answers
+
+- An avatar URL is fetched only when it is one file under `/profile_images/` on `pbs.twimg.com`, with no `%`, no `..` segment and no `\`.
+- The stored display name has control characters, bidi marks and invisible format characters (U+061C, U+200B to U+200D, U+2060 to U+2065, U+FEFF) removed. A name with only those characters is stored as null.
+
+### 15.5 Extension 1.2.1
+
+- Author (replaces the author sentence of 7.3): the one visible link in `[data-testid="User-Name"]` whose text is `@handle` or the handle, and whose path is that same handle. A hidden link does not count (`hidden`, `display:none` or `visibility:hidden`, also on a parent in the header). Two such links that name different accounts, or none, mean no author. The outer avatar link `[data-testid="Tweet-User-Avatar"] a`, when its path is one handle, must name that same account. That test id is fixed in the extension; a remote selector cannot change it. A missing avatar skips this check.
+- A content vote or unvote carries `n` (a rising count for that script) and `s` (one id for the life of that script). A resend after a lost answer keeps the same pair. The background applies vote, unvote, restore and the instant-mute record one at a time, stores the last `n` for each `s` in `storage.session` (at most 500 scripts) after the action succeeds, and does not apply a message whose `n` is not higher. The popup sends no stamp. `n` and `s` are not in the vote body sent to the server.
+- Storage writes of one key run in order. The later write is the value that storage keeps.
+- A stored outbox whose `ops` or `obs` is not an array reads as empty. A non-object entry is skipped.
+
+### 15.6 Advisory locks
+
+- `migrate` takes `pg_advisory_lock($1::int, hashtext(current_schema()))`. One channel does not block the migrations of another channel on the same database.

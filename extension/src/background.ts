@@ -10,7 +10,7 @@ import { isXUrl } from './shared/hosts';
 import { VOTES_MAX, parseContentMsg, parsePageMsg } from './shared/messages';
 import { expectInstant, takeBack } from './shared/muteplan';
 import type { Observation, Settings, Vote, VoteBody } from './shared/types';
-import { cmpVersion, localDay } from './shared/util';
+import { cmpVersion, isObj, localDay } from './shared/util';
 
 const PERIODS: [string, number][] = [[LIST_ALARM, 10], [CONFIG_ALARM, 360]];
 const SEEN_MAX = 5000;
@@ -83,6 +83,40 @@ ext.permissions?.onAdded?.addListener(() => quiet(startup()));
 
 // One vote change is one task: the memory copy of the vote and the mute state and the outbox order are set
 // before the next message runs, so a mark and an undo right behind it cannot interleave.
+// A content vote or unvote carries `s` (one script) and `n` (a rising count). A resend keeps the pair.
+// Session storage remembers the last `n` per `s`, so a mark that already ran is not applied again.
+const ACT_MAX = 500;
+
+async function actMap(): Promise<Record<string, number>> {
+  const got = (await ext.storage.session.get('actN')).actN;
+  if (!isObj(got)) return {};
+  const out: Record<string, number> = {};
+  for (const [k, v] of Object.entries(got)) if (typeof v === 'number' && Number.isInteger(v)) out[k] = v;
+  return out;
+}
+
+async function seenAct(s: string | undefined, n: number | undefined): Promise<boolean> {
+  if (s === undefined || n === undefined) return false;
+  const last = (await actMap())[s];
+  return last !== undefined && n <= last;
+}
+
+async function rememberAct(s: string | undefined, n: number | undefined): Promise<void> {
+  if (s === undefined || n === undefined) return;
+  const map = await actMap();
+  delete map[s];
+  map[s] = n;
+  const keys = Object.keys(map);
+  if (keys.length > ACT_MAX) for (const k of keys.slice(0, keys.length - ACT_MAX)) delete map[k];
+  await ext.storage.session.set({ actN: map });
+}
+
+const changeVote = serial(async (s: string | undefined, n: number | undefined, run: () => Promise<{ ok: true }>): Promise<{ ok: true }> => {
+  if (await seenAct(s, n)) return { ok: true };
+  const result = await run();
+  await rememberAct(s, n);
+  return result;
+});
 
 async function putVote(input: VoteBody): Promise<{ ok: true }> {
   const s = await state();
@@ -185,13 +219,13 @@ listen(async (raw, sender) => {
     if (!m) return bad;
     switch (m.t) {
       case 'settings': return setSettings(m.patch);
-      case 'unvote': return removeVote(m.handle);
+      case 'unvote': return changeVote(undefined, undefined, () => removeVote(m.handle));
       case 'restore': {
         const v = m.vote;
-        return putVote({
+        return changeVote(undefined, undefined, () => putVote({
           handle: v.h, value: v.v === 1 ? 'slop' : 'not_slop', tweetId: v.tweetId, parentTweetId: v.parentTweetId,
           postedAt: v.postedAt, context: v.context,
-        });
+        }));
       }
       case 'muteUndoAll':
         await undoAll();
@@ -204,15 +238,15 @@ listen(async (raw, sender) => {
   const m = parseContentMsg(raw);
   if (!m) return bad;
   switch (m.t) {
-    case 'vote': return putVote(m);
-    case 'unvote': return removeVote(m.handle);
+    case 'vote': return changeVote(m.s, m.n, () => putVote(m));
+    case 'unvote': return changeVote(m.s, m.n, () => removeVote(m.handle));
     case 'observe': return observe(m.items);
     case 'hidden': return countHidden(m.ids);
     case 'hello':
       quiet(muteTick());
       quiet(refreshOwn(sender.tab.id));
       return { ok: true };
-    case 'muted': return recordInstant(m);
+    case 'muted': return changeVote(undefined, undefined, () => recordInstant(m));
     case 'muteRecord': return muteRecord(m.handle);
   }
   return bad;

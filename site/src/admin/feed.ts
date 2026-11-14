@@ -3,6 +3,7 @@
 
 import { h } from '../lib/dom.ts';
 import { activityDetail, activitySentence, changedFields } from './explain.ts';
+import { stripControls } from './rows.ts';
 import type { Activity, ActivityKind } from './model.ts';
 import { sentence, time } from './ui.ts';
 
@@ -17,6 +18,11 @@ export const KIND_LABEL: Record<ActivityKind, string> = {
   vote: 'Vote',
   install: 'New install',
 };
+
+/** The raw before/after JSON of an admin change, shown behind the toggle. */
+export function rawState(before: unknown, after: unknown): string {
+  return stripControls(JSON.stringify({ before, after }, null, 2));
+}
 
 function item(a: Activity): HTMLElement {
   const li = h('li', { class: 'act', 'data-kind': a.kind, 'data-key': a.key }, h('span', { class: 'act-time' }, time(a.at)), h('span', { class: 'act-kind' }, KIND_LABEL[a.kind]));
@@ -36,7 +42,7 @@ function item(a: Activity): HTMLElement {
     }
     const before = a.data.before ?? null;
     const after = a.data.after ?? null;
-    if (before !== null || after !== null) body.append(h('details', { class: 'raw' }, h('summary', null, 'Raw state'), h('pre', null, JSON.stringify({ before, after }, null, 2))));
+    if (before !== null || after !== null) body.append(h('details', { class: 'raw' }, h('summary', null, 'Raw state'), h('pre', null, rawState(before, after))));
   }
   li.append(body);
   return li;

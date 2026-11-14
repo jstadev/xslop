@@ -60,6 +60,54 @@ function lastOuter(article: Element, selector: string, quote: string): HTMLEleme
   return null;
 }
 
+const AT_TEXT = /^@?([A-Za-z0-9_]{1,15})$/;
+/** Hard-coded. A remote selector must not be able to point this check at another link. */
+const AVATAR_LINK = '[data-testid="Tweet-User-Avatar"] a';
+
+function shownText(el: Element): string {
+  return (el.textContent ?? '').replace(/\p{Cf}/gu, '').normalize('NFKC').trim();
+}
+
+/** A link the reader cannot see: hidden, or display:none / visibility:hidden on it or a parent in the header. */
+function concealed(el: Element, header: Element): boolean {
+  for (let n: Element | null = el; n; n = n.parentElement) {
+    if (n.hasAttribute('hidden')) return true;
+    const style = n.getAttribute('style') ?? '';
+    if (/display\s*:\s*none/i.test(style) || /visibility\s*:\s*hidden/i.test(style)) return true;
+    if (n.isConnected) {
+      const cs = getComputedStyle(n);
+      if (cs.display === 'none' || cs.visibility === 'hidden') return true;
+    }
+    if (n === header) break;
+  }
+  return false;
+}
+
+/**
+ * The author is the one visible header link whose text is `@handle` or the handle, and whose href is that same handle.
+ * Two such links that disagree, or none, mean no author. A hidden link does not count.
+ */
+function authorHandle(header: Element, sel: Selectors): string | null {
+  const found = new Set<string>();
+  for (const a of header.querySelectorAll(sel.userLink)) {
+    if (concealed(a, header)) continue;
+    const m = AT_TEXT.exec(shownText(a));
+    if (!m) continue;
+    const href = profileHandle(a.getAttribute('href'));
+    if (href !== m[1]!.toLowerCase()) continue;
+    found.add(href);
+  }
+  return found.size === 1 ? [...found][0]! : null;
+}
+
+/** The outer avatar, when it links to one profile, must name the same account. A missing avatar skips the check. */
+function avatarAgrees(article: Element, sel: Selectors, handle: string): boolean {
+  const avatar = firstOuter(article, AVATAR_LINK, sel.quote);
+  if (!avatar) return true;
+  const href = profileHandle(avatar.getAttribute('href'));
+  return href === null || href === handle;
+}
+
 /** A "Replying to @name" line: a profile link that reads "@..." outside the header, the text and any quote, above the text. */
 function hasReplyingTo(article: Element, sel: Selectors, header: Element, text: Element | null, anchor: Element | null): boolean {
   for (const a of article.querySelectorAll(sel.replyingTo)) {
@@ -82,12 +130,8 @@ export function caretOf(article: Element, sel: Selectors): HTMLElement | null {
 export function parseTweet(article: Element, sel: Selectors): Parsed | null {
   const header = firstOuter(article, sel.userName, sel.quote);
   if (!header) return null;
-  let handle: string | null = null;
-  for (const a of header.querySelectorAll(sel.userLink)) {
-    handle = profileHandle(a.getAttribute('href'));
-    if (handle) break;
-  }
-  if (!handle) return null;
+  const handle = authorHandle(header, sel);
+  if (!handle || !avatarAgrees(article, sel, handle)) return null;
 
   let tweetId: string | null = null;
   let time: string | null = null;

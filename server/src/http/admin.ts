@@ -30,6 +30,8 @@ const TOKEN_RE = /^[A-Za-z0-9_-]{43}$/;
 const MAX_PASSWORD_CHECKS = 2;
 /** The one key of the adminCodeFailures bucket. */
 const CODE_FAILURES_KEY = 'all';
+/** The one key of the adminLoginGlobal bucket. */
+const LOGIN_GLOBAL_KEY = 'all';
 /** A listed account with this many "not slop" networks without standing goes to the disputed queue. */
 const DISSENT_REVIEW_MIN = 3;
 
@@ -393,20 +395,31 @@ export function registerAdmin(app: FastifyInstance, ctx: Ctx): void {
       const t = L.adminLoginFailures.take(ip, ctx.now());
       if (!t.ok) return sendRateLimited(reply, t.retryAfterSec);
       const b = req.body as { username: string; password: string; code?: string };
-      // scrypt runs for every attempt, so a bad user and a bad password take the same time.
+      // A valid unused code skips the shared budget, so a flood of bad passwords cannot shut the admin out.
+      const preview = admin.totp && b.code ? totpStep(admin.totp, b.code, ctx.now()) : null;
+      const skipGlobal = preview !== null && preview > lastCodeStep;
+      if (!skipGlobal) {
+        const g = L.adminLoginGlobal.take(LOGIN_GLOBAL_KEY, ctx.now());
+        if (!g.ok) {
+          L.adminLoginFailures.refund(ip, ctx.now());
+          return sendRateLimited(reply, g.retryAfterSec);
+        }
+      }
+      // scrypt runs for every attempt that reaches it, so a bad user and a bad password take the same work.
       passwordChecks++;
       const pwOk = await verifyPassword(b.password, admin.hash).finally(() => passwordChecks--);
       const userOk = safeEqual(b.username, admin.user);
       // The code of the current step, or of one step before or after, works once (section 13.8).
-      const step = admin.totp && b.code ? totpStep(admin.totp, b.code, ctx.now()) : null;
-      const codeOk = !admin.totp || (step !== null && step > lastCodeStep);
+      // Read lastCodeStep again after the await: a parallel login may have used this step.
+      const codeOk = !admin.totp || (preview !== null && preview > lastCodeStep);
       if (!pwOk || !userOk || !codeOk) {
         if (pwOk && userOk) L.adminCodeFailures.take(CODE_FAILURES_KEY, ctx.now());
         // A wrong code answers like a wrong password.
         return sendError(reply, 401, 'invalid_credentials', admin.totp ? 'The username, password or code is wrong.' : 'The username or password is wrong.');
       }
-      if (step !== null) lastCodeStep = step;
+      if (preview !== null) lastCodeStep = preview;
       L.adminLoginFailures.refund(ip, ctx.now());
+      if (!skipGlobal) L.adminLoginGlobal.refund(LOGIN_GLOBAL_KEY, ctx.now());
 
       const token = randomToken(32);
       const csrf = randomToken(32);

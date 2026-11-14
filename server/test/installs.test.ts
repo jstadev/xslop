@@ -60,6 +60,14 @@ describe.each(BACKENDS)('installs and signatures (%s)', (backend) => {
       expect(Number(r.headers['retry-after'])).toBeGreaterThan(0);
       expect((await t.app.inject({ url: '/api/v1/challenge', headers: fromIp('203.0.114.9') })).statusCode).toBe(200);
     });
+    it('counts 6to4, mapped, Teredo and NAT64 forms of one IPv4 as one network', async () => {
+      for (let i = 0; i < 30; i++) expect((await t.app.inject({ url: '/api/v1/challenge', headers: fromIp('203.0.113.9') })).statusCode).toBe(200);
+      for (const ip of ['2002:cb00:71c8::1', '::ffff:cb00:7109', '64:ff9b::203.0.113.50', '2001:0:1111:2222:8000:63bf:34ff:8ef6']) {
+        const r = await t.app.inject({ url: '/api/v1/challenge', headers: fromIp(ip) });
+        expect(r.statusCode, ip).toBe(429);
+      }
+      expect((await t.app.inject({ url: '/api/v1/challenge', headers: fromIp('2002:cb00:7209::1') })).statusCode).toBe(200);
+    });
   });
 
   describe('POST /api/v1/installs', () => {

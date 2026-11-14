@@ -20,6 +20,54 @@ describe('ip hash', () => {
     expect(ipPrefix('fe80::1%eth0')).toBe('fe80:0:0::/48');
     expect(ipPrefix('garbage')).toBe('unknown');
   });
+  it('maps every embedded IPv4 form onto that IPv4 /24', () => {
+    const same = '203.0.113.0/24';
+    for (const ip of [
+      '203.0.113.77',
+      '203.0.113.077',
+      '203.0.113.77%eth0',
+      '::ffff:203.0.113.77',
+      '::FFFF:203.0.113.77',
+      '::ffff:203.0.113.77%eth0',
+      '0:0:0:0:0:ffff:203.0.113.77',
+      '0000:0000:0000:0000:0000:ffff:203.0.113.77',
+      '::ffff:cb00:714d',
+      '::FFFF:CB00:714D',
+      '::ffff:0:203.0.113.77',
+      '0:0:0:0:ffff:0:cb00:714d',
+      '::203.0.113.77',
+      '::cb00:714d',
+      '2002:cb00:714d::1',
+      '2002:CB00:714D::',
+      '2002:cb00:7101::',
+      '64:ff9b::203.0.113.77',
+      '64:ff9b::cb00:714d',
+      '64:ff9b:0:0:0:0:cb00:714d',
+      '64:ff9b:1:cb00:71:4d00::',
+      '64:ff9b:1:cb00:71:4d00:0:1',
+    ]) expect(ipPrefix(ip), ip).toBe(same);
+    expect(ipPrefix('2002:0a01:0203::')).toBe('10.1.2.0/24');
+    expect(ipPrefix('10.1.2.3')).toBe('10.1.2.0/24');
+    expect(ipPrefix('2002:cb00:7200::')).toBe('203.0.114.0/24');
+    expect(ipPrefix('2001:0000:4136:e378:8000:63bf:3fff:fdd2')).toBe('192.0.2.0/24');
+    expect(ipPrefix('2001:0:1111:2222:8000:63bf:3fff:fdd2')).toBe('192.0.2.0/24');
+    expect(ipPrefix('2001:0:4136:e378:8000:63bf:3fff:fcd2')).toBe('192.0.3.0/24');
+    expect(ipPrefix('64:ff9b:1:a01:2:300::')).toBe('10.1.2.0/24');
+    expect(ipPrefix('::2')).toBe('0.0.0.0/24');
+  });
+  it('keeps one network for two spellings, and a /48 where no IPv4 is embedded', () => {
+    expect(ipPrefix('2001:DB8:ABCD:12::1')).toBe(ipPrefix('2001:0db8:abcd:0012:0:0:0:1'));
+    expect(ipPrefix('fe80::1%eth0')).toBe(ipPrefix('fe80::1%eth1'));
+    expect(ipPrefix('fe80::1%1')).toBe('fe80:0:0::/48');
+    expect(ipPrefix('::')).toBe('0:0:0::/48');
+    expect(ipPrefix('::1')).toBe('0:0:0::/48');
+    expect(ipPrefix('0:0:0:0:0:0:0:1')).toBe('0:0:0::/48');
+    expect(ipPrefix('fc00::1')).toBe('fc00:0:0::/48');
+    expect(ipPrefix('fd12:3456:789a:1::1')).toBe('fd12:3456:789a::/48');
+    expect(ipPrefix('ff02::1')).toBe('ff02:0:0::/48');
+    expect(ipPrefix('64:ff9b:1:cb00:171:4d00::')).toBe('64:ff9b:1::/48');
+    for (const ip of ['garbage', '::ffff:999.1.1.1', '1.2.3.4:5555', '', '203.0.113.77:5555']) expect(ipPrefix(ip), ip).toBe('unknown');
+  });
   it('hashes neighbours alike and keeps 32 hex chars', () => {
     const salt = Buffer.alloc(32, 1);
     const a = ipHash(salt, '203.0.113.1');
@@ -140,13 +188,21 @@ describe('token bucket', () => {
 });
 
 describe('token bucket key cap and takeAll', () => {
-  it('drops the oldest key at the cap', () => {
-    const b = new TokenBucket(1, 60_000, 2);
+  it('does not reset a short bucket when new keys fill the cap', () => {
+    const b = new TokenBucket(1, 10_000, 2);
     expect(['a', 'b'].map((k) => b.take(k, 0).ok)).toEqual([true, true]);
     expect(b.take('a', 0).ok).toBe(false);
-    expect(b.take('c', 0).ok).toBe(true);
+    // Both keys are empty. A new key must not evict them and start full.
+    expect(b.take('c', 0)).toEqual({ ok: false, retryAfterSec: 10 });
     expect(b.size).toBe(2);
-    expect(b.take('a', 0).ok).toBe(true); // 'a' was dropped, so it starts full
+    expect(b.take('a', 0).ok).toBe(false);
+    b.refund('c', 0);
+    expect(b.size).toBe(2);
+    expect(b.peek('c', 0).ok).toBe(false);
+    // The oldest key has refilled, so a new key may replace that one.
+    expect(b.take('c', 10_000).ok).toBe(true);
+    expect(b.size).toBe(2);
+    expect(b.take('b', 10_000).ok).toBe(true);
   });
   it('takes from every bucket or from none', () => {
     const x = new TokenBucket(10, 60_000);
@@ -169,6 +225,15 @@ describe('sliding limit', () => {
     expect(s.hit('k', 1300)).toBe(true);
     expect(s.hit('x', 5000)).toBe(true); // every older key expired
     expect(s.size).toBe(1);
+  });
+  it('does not reset a key that is at its limit when the map is full', () => {
+    const s = new SlidingLimit(1, 1000, 2);
+    expect(s.hit('a', 0)).toBe(true);
+    expect(s.hit('b', 0)).toBe(true);
+    expect(s.hit('c', 0)).toBe(false);
+    expect(s.size).toBe(2);
+    expect(s.hit('a', 10)).toBe(false);
+    expect(s.hit('a', 1001)).toBe(true);
   });
 });
 

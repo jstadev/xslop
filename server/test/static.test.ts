@@ -1,7 +1,10 @@
 import { createHash } from 'node:crypto';
+import { Writable } from 'node:stream';
 import { brotliDecompressSync } from 'node:zlib';
 import { beforeAll, describe, expect, it } from 'vitest';
+import { buildApp, loggerOptions } from '../src/app.js';
 import type { Db } from '../src/db.js';
+import { loadAppConfig } from '../src/env.js';
 import { loadStatic } from '../src/http/static.js';
 import { makeApp, makeStaticRoot, NO_FILES, type TestApp } from './helpers/app.js';
 
@@ -128,5 +131,45 @@ describe('static files from memory', () => {
     expect([d.statusCode, d.json().error.code]).toEqual([503, 'downloads_unavailable']);
     const boot = await loadStatic('/nonexistent-root', '/nonexistent-root/c.json');
     expect(boot).toEqual(NO_FILES);
+  });
+});
+
+describe('store listings in latest.json', () => {
+  const CHROME = 'https://chromewebstore.google.com/detail/xslop/abcdefghijklmnopabcdefghijklmnop';
+  const FIREFOX = 'https://addons.mozilla.org/en-US/firefox/addon/xslop/';
+
+  /** Starts the app as main.ts does: the environment first, then buildApp, which loads the files and logs. */
+  async function boot(env: Record<string, string>): Promise<{ status: number; latest: Record<string, unknown>; log: string }> {
+    const { root } = await makeStaticRoot();
+    const lines: string[] = [];
+    const stream = new Writable({ write: (chunk, _enc, cb) => (lines.push(String(chunk)), cb()) });
+    const config = loadAppConfig({ XSLOP_SECRET: 'a'.repeat(64), XSLOP_IP_SALT: 'b'.repeat(64), XSLOP_STATIC_ROOT: root, ...env });
+    const app = await buildApp({ db: noDb, config, logger: { ...loggerOptions, stream } });
+    const r = await app.inject({ url: '/downloads/latest.json' });
+    await app.close();
+    return { status: r.statusCode, latest: r.json(), log: lines.join('') };
+  }
+
+  it('names a valid listing as chromeStoreUrl and firefoxUrl', async () => {
+    const { latest, log } = await boot({ XSLOP_CHROME_STORE_URL: CHROME, XSLOP_FIREFOX_STORE_URL: FIREFOX });
+    expect(latest).toMatchObject({ version: '1.2.0', chromeStoreUrl: CHROME, firefoxUrl: FIREFOX });
+    expect(log).not.toContain('"level":40');
+  });
+
+  it('leaves an unset listing out of the file', async () => {
+    const { latest } = await boot({ XSLOP_CHROME_STORE_URL: '' });
+    expect(latest.version).toBe('1.2.0');
+    expect(Object.keys(latest)).toEqual(['version', 'chrome', 'firefox', 'safari']);
+  });
+
+  it('leaves a bad listing out, starts anyway and logs one warning with the name of the variable, not its value', async () => {
+    const { status, latest, log } = await boot({ XSLOP_CHROME_STORE_URL: 'https://chromewebstore.google.com/search/pasted-token-123', XSLOP_FIREFOX_STORE_URL: FIREFOX });
+    expect(status).toBe(200);
+    expect(latest).toMatchObject({ version: '1.2.0', firefoxUrl: FIREFOX });
+    expect('chromeStoreUrl' in latest).toBe(false);
+    const warnings = log.split('\n').filter((line) => line.includes('"level":40'));
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain('"variable":"XSLOP_CHROME_STORE_URL"');
+    expect(log).not.toContain('pasted-token-123');
   });
 });

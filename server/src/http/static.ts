@@ -3,6 +3,7 @@ import { readdir, readFile, stat } from 'node:fs/promises';
 import { join, posix, relative, sep } from 'node:path';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { ipLimit, type Ctx } from '../app.js';
+import type { StoreUrls } from '../env.js';
 import { sha256Hex } from '../lib/crypto.js';
 import { encodeAll, etagMatches, etagOf, sendVariant, type Encoded } from '../lib/encoding.js';
 import { sendError } from '../lib/http.js';
@@ -110,7 +111,7 @@ function cmpVersion(a: number[], b: number[]): number {
   return 0;
 }
 
-async function loadDownloads(dir: string): Promise<Map<string, Asset> | null> {
+async function loadDownloads(dir: string, stores: StoreUrls): Promise<Map<string, Asset> | null> {
   if (!(await isDir(dir))) return null;
   const out = new Map<string, Asset>();
   type Pick = { file: string; sha256: string; bytes: number; v: number[] };
@@ -127,7 +128,14 @@ async function loadDownloads(dir: string): Promise<Map<string, Asset> | null> {
   }
   const top = BROWSERS.map((b) => best[b]?.v).filter((v): v is number[] => !!v).sort(cmpVersion).at(-1);
   const info = (p: Pick | null) => (p ? { file: p.file, url: `/downloads/${p.file}`, sha256: p.sha256, bytes: p.bytes } : null);
-  const latest = { version: top ? top.join('.') : null, chrome: info(best.chrome), firefox: info(best.firefox), safari: info(best.safari) };
+  const latest = {
+    version: top ? top.join('.') : null,
+    chrome: info(best.chrome),
+    firefox: info(best.firefox),
+    safari: info(best.safari),
+    ...(stores.chromeStoreUrl && { chromeStoreUrl: stores.chromeStoreUrl }),
+    ...(stores.firefoxUrl && { firefoxUrl: stores.firefoxUrl }),
+  };
   out.set('/downloads/latest.json', makeAsset(Buffer.from(JSON.stringify(latest)), 'json', { 'cache-control': 'public, max-age=300' }));
   return out;
 }
@@ -141,10 +149,10 @@ async function loadConfig(file: string): Promise<Asset | null> {
 }
 
 /** Loads every static file into memory once, with gzip, br and a strong ETag (section 5.7). */
-export async function loadStatic(root: string, configFile: string): Promise<StaticFiles> {
+export async function loadStatic(root: string, configFile: string, stores: StoreUrls = { chromeStoreUrl: null, firefoxUrl: null }): Promise<StaticFiles> {
   const [site, downloads, config] = await Promise.all([
     loadSite(join(root, 'site', 'dist')),
-    loadDownloads(join(root, 'extension', 'dist')),
+    loadDownloads(join(root, 'extension', 'dist'), stores),
     loadConfig(configFile),
   ]);
   return { site: site?.site ?? null, notFound: site?.notFound ?? null, downloads, config };

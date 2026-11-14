@@ -37,6 +37,11 @@ export function detectBrowser({ userAgent: ua, brave, arc }: BrowserSignals): Br
   return 'unknown';
 }
 
+/** True for the browsers that install an extension from the Chrome Web Store. Edge and Opera have stores of their own. */
+export function installsFromChromeStore(id: BrowserId): boolean {
+  return id === 'chrome' || id === 'brave' || id === 'vivaldi' || id === 'arc';
+}
+
 /** True for a GL that runs on the CPU: the scene would draw a few frames per second there. */
 export function isSoftwareRenderer(name: string): boolean {
   return /swiftshader|llvmpipe|softpipe|basic render/i.test(name);

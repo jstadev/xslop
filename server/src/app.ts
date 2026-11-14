@@ -88,7 +88,9 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   });
 
   const now = deps.now ?? Date.now;
-  const files = deps.files ?? (await loadStatic(deps.config.staticRoot, deps.config.configFile));
+  // The name only: a value can hold a token that someone pasted by mistake.
+  for (const name of deps.config.ignored) app.log.warn({ variable: name }, 'ignored a bad optional variable: it is not a store listing URL');
+  const files = deps.files ?? (await loadStatic(deps.config.staticRoot, deps.config.configFile, deps.config.stores));
   const ctx: Ctx = {
     db: deps.db,
     config: deps.config,

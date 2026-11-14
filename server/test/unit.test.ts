@@ -251,4 +251,32 @@ describe('env', () => {
     // A TOTP secret without the password login is a mistake, not a second factor.
     expect(() => loadAppConfig({ ...base, XSLOP_ADMIN_TOTP: 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ' })).toThrow(EnvError);
   });
+  it('reads the store listings: an unset one is null, a bad one is ignored by name and never stops the start', () => {
+    const chrome = 'https://chromewebstore.google.com/detail/xslop/abcdefghijklmnopabcdefghijklmnop';
+    const firefox = 'https://addons.mozilla.org/en-US/firefox/addon/xslop/';
+    expect(loadAppConfig(base)).toMatchObject({ stores: { chromeStoreUrl: null, firefoxUrl: null }, ignored: [] });
+    expect(loadAppConfig({ ...base, XSLOP_CHROME_STORE_URL: '', XSLOP_FIREFOX_STORE_URL: '' })).toMatchObject({ stores: { chromeStoreUrl: null, firefoxUrl: null }, ignored: [] });
+    expect(loadAppConfig({ ...base, XSLOP_CHROME_STORE_URL: chrome, XSLOP_FIREFOX_STORE_URL: firefox })).toMatchObject({ stores: { chromeStoreUrl: chrome, firefoxUrl: firefox }, ignored: [] });
+    expect(loadAppConfig({ ...base, XSLOP_FIREFOX_STORE_URL: 'https://addons.mozilla.org/firefox/addon/xslop' }).stores.firefoxUrl).toBe('https://addons.mozilla.org/firefox/addon/xslop');
+    const badChrome = [
+      chrome.replace('https:', 'http:'),
+      chrome.replace('google.com', 'google.com.example.net'),
+      chrome.replace('https://', 'https://user@'),
+      // The right host with a path that is not a listing.
+      'https://chromewebstore.google.com/search/xslop',
+      'https://chromewebstore.google.com/detail/abcdefghijklmnopabcdefghijklmnop',
+      chrome.replace(/p$/, 'q'),
+      chrome.slice(0, -1),
+      `${chrome}?hl=en`,
+      // The URL parser resolves %2e%2e: the link would leave the listing.
+      'https://chromewebstore.google.com/detail/%2e%2e/abcdefghijklmnopabcdefghijklmnop',
+      'javascript:alert(1)',
+    ];
+    for (const bad of badChrome) {
+      expect(loadAppConfig({ ...base, XSLOP_CHROME_STORE_URL: bad, XSLOP_FIREFOX_STORE_URL: firefox }), bad).toMatchObject({ stores: { chromeStoreUrl: null, firefoxUrl: firefox }, ignored: ['XSLOP_CHROME_STORE_URL'] });
+    }
+    for (const bad of ['https://addons.mozilla.org/en-US/firefox/', 'https://addons.mozilla.org/en-US/android/addon/xslop/', 'https://addons.mozilla.org/en-US/firefox/addon/../../user/1/', firefox.replace('.org', '.org.example.net')]) {
+      expect(loadAppConfig({ ...base, XSLOP_FIREFOX_STORE_URL: bad }), bad).toMatchObject({ stores: { firefoxUrl: null }, ignored: ['XSLOP_FIREFOX_STORE_URL'] });
+    }
+  });
 });

@@ -24,6 +24,8 @@ export function testConfig(over: Partial<AppConfig> = {}): AppConfig {
     staticRoot: '/nonexistent-xslop-root',
     configFile: '/nonexistent-xslop-root/config.json',
     admin: null,
+    stores: { chromeStoreUrl: null, firefoxUrl: null },
+    ignored: [],
     ...over,
   };
 }

@@ -10,6 +10,10 @@ import { chromium, webkit, type Browser, type BrowserContextOptions } from 'play
 import { chosenTheme, DIST, horizontalOverflow, open, sceneColours, serve, WEBGL_ARGS, type Watched } from './helpers.ts';
 
 const CHROME_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36';
+const EDGE_UA = `${CHROME_UA} Edg/130.0.0.0`;
+const FIREFOX_UA = 'Mozilla/5.0 (X11; Linux x86_64; rv:132.0) Gecko/20100101 Firefox/132.0';
+/** The listing that the mock latest.json names in its `store` scenario. */
+const STORE_URL = 'https://chromewebstore.google.com/detail/xslop/abcdefghijklmnopabcdefghijklmnop';
 
 // The page starts a GL on the CPU at its lowest resolution. Only the name that this GL reports changes; the GL stays real.
 const REPORT_GPU = `{
@@ -259,18 +263,18 @@ describe('pages', () => {
       assert.deepEqual(await links.allTextContents(), FOOTER_PAGES.map(([text]) => text));
       assert.deepEqual(await links.evaluateAll((els) => els.map((el) => el.getAttribute('href'))), FOOTER_PAGES.map(([, href]) => href));
       for (const [, href] of FOOTER_PAGES.filter(([, href]) => href !== '/sloppers' && href !== '/download')) assert.equal(await page.locator(`a[href="${href}"]`).count(), 1, `${href} is linked once, from the footer`);
-      assert.equal(await page.locator('a[href="/download"]').count(), 2, 'the header button and the footer: the thread head has no button');
+      assert.equal(await page.locator('a[href="/download"]').count(), 3, 'the header button, the install button of the last act and the footer: the hero and the thread head have no button');
       await page.context().close();
     } finally {
       await server.close();
     }
   });
 
-  test('the install button leads to the download page', async () => {
+  test('the install buttons lead to the download page', async () => {
     const server = await serve();
     try {
       const { page } = await open(browser, `${server.url}/`, { reducedMotion: 'reduce' });
-      assert.deepEqual(await page.locator('a.btn-primary').evaluateAll((els) => els.map((el) => el.getAttribute('href'))), ['/download']);
+      assert.deepEqual(await page.locator('a.btn-primary').evaluateAll((els) => els.map((el) => [el.textContent?.trim(), el.getAttribute('href')])), [['Install', '/download'], ['Install xslop', '/download']]);
       await page.locator('a.btn-primary').first().click();
       await page.waitForURL('**/download');
       await page.locator('#install-version', { hasText: 'Version' }).waitFor();
@@ -562,7 +566,16 @@ describe('download', () => {
   test('store buttons appear when latest.json names the stores', async () => {
     const chrome = await detected({ userAgent: CHROME_UA }, { latest: 'store' });
     try {
-      assert.equal(await chrome.page.locator('#install-now a', { hasText: 'Chrome Web Store' }).getAttribute('href'), 'https://chromewebstore.google.com/detail/xslop/abcdefghijklmnopabcdefghijklmnop');
+      const badge = chrome.page.locator('#install-now a.store-badge');
+      assert.equal(await badge.getAttribute('href'), STORE_URL);
+      assert.equal(await badge.getAttribute('aria-label'), 'Available in the Chrome Web Store');
+      assert.equal(await badge.evaluate((el) => getComputedStyle(el).backgroundImage.includes('chrome-web-store')), true, 'the official badge picture');
+      // The zip steps stay below the badge as the second way.
+      assert.match(chrome.text, /Or install the zip yourself/);
+      assert.equal(await chrome.page.locator('#install-now a[download]').getAttribute('href'), '/downloads/xslop-chrome-v1.0.0.zip');
+      assert.match((await chrome.page.locator('#install-now a[download]').getAttribute('class')) ?? '', /btn-quiet/, 'the zip is the quiet second way');
+      const [badgeBox, zipBox] = await Promise.all([badge.boundingBox(), chrome.page.locator('#install-now a[download]').boundingBox()]);
+      assert.ok(badgeBox && zipBox && badgeBox.y + badgeBox.height <= zipBox.y, 'the store first, the zip below');
     } finally {
       await chrome.close();
     }
@@ -572,6 +585,32 @@ describe('download', () => {
       assert.equal(await firefox.page.locator('#install-now a[download]').count(), 0, 'no zip when the store is live');
     } finally {
       await firefox.close();
+    }
+  });
+
+  test('Brave and Vivaldi get the store badge too; Edge keeps the zip path', async () => {
+    const brave = await detected({ userAgent: CHROME_UA }, { latest: 'store' }, (page) => page.addInitScript('Object.defineProperty(navigator, "brave", { value: {} })'));
+    try {
+      assert.match(brave.text, /You are on Brave\./);
+      assert.equal(await brave.page.locator('#install-now a.store-badge').getAttribute('href'), STORE_URL);
+    } finally {
+      await brave.close();
+    }
+    const vivaldi = await detected({ userAgent: `${CHROME_UA} Vivaldi/7.0` }, { latest: 'store' });
+    try {
+      assert.match(vivaldi.text, /You are on Vivaldi\./);
+      assert.equal(await vivaldi.page.locator('#install-now a.store-badge').getAttribute('href'), STORE_URL);
+    } finally {
+      await vivaldi.close();
+    }
+    const edge = await detected({ userAgent: EDGE_UA }, { latest: 'store' });
+    try {
+      assert.match(edge.text, /You are on Edge\./);
+      assert.equal(await edge.page.locator('#install-now a[href*="chromewebstore"]').count(), 0, 'Edge has a store of its own');
+      assert.equal(await edge.page.locator('#install-now a[download]').getAttribute('href'), '/downloads/xslop-chrome-v1.0.0.zip');
+      assert.match(edge.text, /edge:\/\/extensions/);
+    } finally {
+      await edge.close();
     }
   });
 
@@ -598,6 +637,101 @@ describe('download', () => {
       await close();
     }
   });
+});
+
+describe('the store button on the landing page', () => {
+  /** The landing page with latest.json held back until `release` runs, so a test sees the page while the list loads. */
+  async function landingWith(userAgent: string, latest: 'ok' | 'store' | 'down') {
+    const server = await serve({ latest });
+    const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, userAgent });
+    const page = await context.newPage();
+    const errors: string[] = [];
+    const asked: string[] = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    page.on('request', (r) => {
+      if (new URL(r.url()).pathname === '/downloads/latest.json') asked.push(r.url());
+    });
+    let release = (): void => undefined;
+    const held = new Promise<void>((resolve) => (release = resolve));
+    await page.route('**/downloads/latest.json', async (route) => {
+      await held;
+      await route.continue();
+    });
+    await page.goto(`${server.url}/`, { waitUntil: 'load' });
+    await page.evaluate(() => document.fonts.ready);
+    return {
+      page,
+      errors,
+      asked,
+      release,
+      close: async () => {
+        await context.close();
+        await server.close();
+      },
+    };
+  }
+
+  /** Each install link of the landing page: its place, its target and whether it shows. */
+  const links = (page: Watched['page']) =>
+    page.locator('a[data-store-link]').evaluateAll((els) => els.map((el) => [el.classList[el.classList.length - 1], el.getAttribute('href'), !(el as HTMLElement).hidden]));
+  const heroBoxes = (page: Watched['page']) =>
+    page.locator('.flood-lead, .flood-step, #hero-switch').evaluateAll((els) => els.map((el) => JSON.stringify(el.getBoundingClientRect())));
+
+  test('Chrome with a listing: the header, the hero badge and the last act lead to the store, and nothing on the page moves', async () => {
+    const { page, errors, release, close } = await landingWith(CHROME_UA, 'store');
+    try {
+      // While the list loads, every button keeps /download and the badge is not there: no empty button.
+      assert.deepEqual(await links(page), [['strip-install', '/download', true], ['store-badge', null, false], ['drain-install', '/download', true]]);
+      const before = await heroBoxes(page);
+      release();
+      await page.locator('.flood-step .store-badge').waitFor({ state: 'visible' });
+      assert.deepEqual(await links(page), [['strip-install', STORE_URL, true], ['store-badge', STORE_URL, true], ['drain-install', STORE_URL, true]]);
+      assert.deepEqual(await heroBoxes(page), before, 'the badge moves nothing');
+      // The badge sits inside the Install box, under its words, at every width with the steps side by side.
+      for (const width of [800, 1000, 1280, 1440, 1920]) {
+        await page.setViewportSize({ width, height: 900 });
+        const fit = await page.locator('.flood-step').first().evaluate((step) => {
+          const badge = step.querySelector('.store-badge')!;
+          const range = document.createRange();
+          range.setStartBefore(step.firstChild!);
+          range.setEndBefore(badge);
+          const words = range.getBoundingClientRect();
+          const b = badge.getBoundingClientRect();
+          const box = step.getBoundingClientRect();
+          return { inside: b.left >= box.left && b.right <= box.right && b.bottom <= box.bottom, clear: b.top >= words.bottom + 4 };
+        });
+        assert.deepEqual(fit, { inside: true, clear: true }, `${width} px`);
+      }
+      // Stacked steps leave no free space in the box, so a narrow window keeps the badge out and the header button leads to the store.
+      await page.setViewportSize({ width: 600, height: 900 });
+      assert.equal(await page.locator('.flood-step .store-badge').isVisible(), false);
+      assert.deepEqual(errors, []);
+    } finally {
+      await close();
+    }
+  });
+
+  for (const [name, userAgent, latest] of [
+    ['Firefox with a listing', FIREFOX_UA, 'store'],
+    ['Edge with a listing', EDGE_UA, 'store'],
+    ['Chrome without a listing', CHROME_UA, 'ok'],
+    ['Chrome when the list fails', CHROME_UA, 'down'],
+  ] as const) {
+    test(`${name}: every install button leads to /download, and the hero has no badge`, async () => {
+      const { page, errors, asked, release, close } = await landingWith(userAgent, latest);
+      try {
+        const answered = userAgent === CHROME_UA ? page.waitForResponse((r) => new URL(r.url()).pathname === '/downloads/latest.json') : null;
+        release();
+        await answered;
+        await page.waitForTimeout(300);
+        assert.deepEqual(await links(page), [['strip-install', '/download', true], ['store-badge', null, false], ['drain-install', '/download', true]]);
+        assert.equal(asked.length, userAgent === CHROME_UA ? 1 : 0, 'only a browser of the Chrome Web Store asks for the list');
+        assert.deepEqual(errors, []);
+      } finally {
+        await close();
+      }
+    });
+  }
 });
 
 describe('the scene', () => {
@@ -924,8 +1058,8 @@ describe('the scene', () => {
         });
         assert.ok(Math.abs(words.x - width / 2) <= 2, `centre x ${words.x}`);
         assert.ok(Math.abs(words.y - (screen.top + screen.bottom) / 2) <= 2, `centre y ${words.y}, the screen above the footer is ${screen.top} to ${screen.bottom}`);
-        const button = await page.locator('.drain-link a').boundingBox();
-        assert.ok(button && words.bottom < button.y, 'the statement stays clear of the button');
+        const button = await page.locator('.drain-link').boundingBox();
+        assert.ok(button && words.bottom < button.y, 'the statement stays clear of the buttons');
         const logo = await page.locator('#end-statement .x-logo svg').boundingBox();
         assert.ok(logo && logo.width > 20, 'the X of the statement is the X logo');
         assert.doesNotMatch((await page.locator('footer').textContent()) ?? '', /for the people/);
@@ -954,7 +1088,7 @@ describe('the scene', () => {
       });
       await page.waitForFunction(() => document.querySelector<HTMLElement>('#drain-accounts li')?.style.visibility === 'visible', undefined, { timeout: 45_000 });
       assert.equal(await first.locator('a').getAttribute('aria-label')?.then((name) => name?.startsWith('@')), true, 'a face alone still has a name');
-      await page.locator('.drain-link a').click({ trial: true, timeout: 15_000 });
+      for (const link of await page.locator('.drain-link a').all()) await link.click({ trial: true, timeout: 15_000 });
       assert.deepEqual(errors, []);
       await page.context().close();
     } finally {
@@ -1189,7 +1323,7 @@ describe('landing page polish', () => {
         assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), theme);
         // The colours move to the new theme in a CSS transition; read them when it ends.
         await page.evaluate(() => Promise.all(document.getAnimations().filter((a) => a instanceof CSSTransition).map((a) => a.finished)));
-        const panes =await page.locator('.flood-step, #hero-switch, .river-head, .column, .bridge-toggle, .drain-link .btn').evaluateAll((els) =>
+        const panes =await page.locator('.flood-step, #hero-switch, .river-head, .column, .bridge-toggle, .drain-link .btn-quiet').evaluateAll((els) =>
           els.map((el) => {
             const css = getComputedStyle(el);
             return { name: el.className, radius: parseFloat(css.borderTopLeftRadius), edge: css.borderTopColor, fill: css.backgroundColor, blur: css.backdropFilter, shadow: css.boxShadow };
@@ -1366,7 +1500,7 @@ describe('landing page polish', () => {
         assert.ok((await statement.evaluate((el) => parseFloat(getComputedStyle(el).fontSize))) >= 28, 'a display line');
         const words = await statementWords(page);
         assert.ok(Math.abs(words.x - width / 2) <= 2, `centre x ${words.x}`);
-        const [button, foot] = await Promise.all([page.locator('.drain-link a').boundingBox(), page.locator('#clean .site-foot').boundingBox()]);
+        const [button, foot] = await Promise.all([page.locator('.drain-link').boundingBox(), page.locator('#clean .site-foot').boundingBox()]);
         assert.ok(button && foot);
         assert.ok(button.y + button.height <= words.top && words.bottom <= foot.y, 'below the drain, above the footer');
         assert.ok(words.top >= 0 && foot.y + foot.height <= height + 1, 'on the last screen of the page');

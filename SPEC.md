@@ -250,7 +250,13 @@ Reject `replyAt` more than 10 minutes in the future or older than 30 days.
   `^xslop-(chrome|firefox)-v[0-9]+\.[0-9]+\.[0-9]+\.zip$`),
   `Content-Disposition: attachment`. `/downloads/latest.json` →
   `{"version","chrome":{"file","sha256","bytes"},"firefox":{...}}` built from
-  the files at boot.
+  the files at boot, plus `"chromeStoreUrl"` and `"firefoxUrl"` when
+  `XSLOP_CHROME_STORE_URL` and `XSLOP_FIREFOX_STORE_URL` hold a listing URL
+  (`https://chromewebstore.google.com/detail/<slug>/<id of 32 letters a-p>`,
+  `https://addons.mozilla.org/[<locale>/]firefox/addon/<slug>/`). An unset
+  variable leaves its field out. A bad value leaves its field out too, and boot
+  logs one warning with the variable name, never the value; it never stops the
+  server.
 - Load all static files into memory at boot, with precomputed gzip and br and
   strong ETags. Unknown path → 404 page from `site/dist/404.html` if present.
 - Headers on HTML: `Content-Security-Policy: default-src 'self'; img-src 'self' data:;
@@ -542,6 +548,7 @@ your phone hides them too.
 `XSLOP_ADMIN_USER`, `XSLOP_ADMIN_HASH`, `XSLOP_POW_BITS` (optional),
 `XSLOP_SITE_ORIGIN` (default `https://x-slop.com`), `XSLOP_STATIC_ROOT`
 (default: the release root, so `site/dist` and `extension/dist` resolve),
+`XSLOP_CHROME_STORE_URL` and `XSLOP_FIREFOX_STORE_URL` (optional, section 5.7),
 `TEST_DATABASE_URL` (tests only). Names go in `.env.example` with no values.
 
 ## 10. Release

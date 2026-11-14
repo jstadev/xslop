@@ -2053,10 +2053,19 @@ details[open] > summary .toggle::before {
   color: var(--color-text-muted);
 }
 
+/* The links and the theme switch share one row. The switch stays at the end of the row. */
+.foot-row {
+  display: flex;
+  align-items: start;
+  gap: var(--space-3);
+}
+
 .foot-nav {
   display: flex;
+  flex: 1;
   flex-wrap: wrap;
   gap: 0 var(--space-5);
+  min-width: 0;
 }
 
 .foot-nav a {
@@ -2116,7 +2125,7 @@ details[open] > summary .toggle::before {
 
 @media (min-width: 900px) {
   /* The links sit above the X Corp line. */
-  .clean .foot-nav {
+  .clean .foot-row {
     grid-row: 1;
   }
 

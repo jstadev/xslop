@@ -1133,11 +1133,20 @@
   height: 1.25rem;
 }
 
+/* The footer links and the theme switch share one row. The switch stays at the end of the row. */
+.sl-foot-row {
+  display: flex;
+  align-items: start;
+  gap: var(--space-3);
+}
+
 /* The rail's links, for every width that has no rail. */
 .sl-foot-nav {
   display: flex;
+  flex: 1;
   flex-wrap: wrap;
   gap: 0 var(--space-5);
+  min-width: 0;
   font-size: var(--text-sm);
 }
 

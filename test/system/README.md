@@ -12,7 +12,7 @@ If a run dies before its cleanup, remove the leftovers with `docker rm -f $(dock
 
 ## The story of one run
 
-1. A fresh release: migrations 001 to 006, the seed import and the first score run. The list holds every starter account with its X id.
+1. A fresh release: migrations 001 to 007, the seed import and the first score run. The list holds every starter account with its X id.
 2. Five new users on five networks install the built extension and mark one account. Each sees it hidden and muted at once. After the score run the account is `pending` with gate `identity` (rule 5 checks the identity gate before the standing gate), and no public answer shows it. A sixth user's browser does not hide it.
 3. The X facts job checks every pending account (work order (3)): the account and its marked posts; then the gate is `standing`. A day later the crowd test of a confirm passes. The admin signs in to the console with a TOTP code and confirms it from the Pending queue. The list has it in the same minute without a score run, the sixth user's open tab hides it, the Log view shows the change, and mute sync mutes it by X id.
 4. Two more admin confirms and a week give the five installs standing. Four of them mark a second account with two checked posts: it is confirmed with no admin action. A third account with one checked post is flagged with gate `evidence`.

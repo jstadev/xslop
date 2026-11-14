@@ -10,7 +10,17 @@ export interface InstallInput {
   standing: boolean; // stored by the previous run; the engine computes it again
 }
 
-export interface VoteInput { install: string; handle: string; value: 0 | 1; at: Date }
+export interface VoteInput {
+  install: string;
+  handle: string;
+  value: 0 | 1;
+  at: Date;
+  postOk?: boolean;
+  standingAt?: Date | null; // time this vote already carried standing; a later value change does not move it
+}
+
+/** A standing slot whose vote was deleted. The engine counts it in the 24 hour window. */
+export interface StandingSpentInput { ipHash: string; at: Date }
 
 export type AccountStatus = 'none' | 'pending' | 'flagged' | 'confirmed' | 'cleared';
 export type Identity = 'unknown' | 'ok' | 'gone' | 'moved';
@@ -21,7 +31,8 @@ export interface AccountInput {
   clearedAt: Date | null;
   override: 'confirm' | 'clear' | null;
   overrideAt: Date | null;
-  listedAt: Date | null; // start of the current listing
+  listedAt: Date | null; // start of the current listing; null when the account is not listed
+  firstPublicAt?: Date | null; // earliest time the account was on the list; kept after it leaves
   status: AccountStatus; // the stored state of the previous run: the brake reads it
   identity: Identity;
   evidence: number; // networks with a counted slop vote that names a post the server verified
@@ -44,6 +55,7 @@ export interface ScoringInput {
   clearedVotes: ClearedVoteInput[];
   autoConfirmsToday: number; // accounts confirmed by votes in the last 24 hours
   autoFlagsToday: number; // accounts listed at tier 1 by votes in the last 24 hours (SPEC.md 13.10 item 6)
+  standingSpent?: StandingSpentInput[]; // deleted votes that already carried standing
 }
 
 export type Tier = 0 | 1 | 2;
@@ -80,4 +92,5 @@ export interface ScoringOutput {
   installs: InstallScore[];
   struckNetworks: number; // networks that count for nothing in this run
   model: { epochs: number };
+  standingVotes?: { install: string; handle: string }[]; // votes that carry standing in this run
 }

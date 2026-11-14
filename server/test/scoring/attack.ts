@@ -41,7 +41,7 @@ export function campaign(o: Options): Result {
   const cast = (u: string, h: string, value: 0 | 1, at: number): void => { votes.set(`${u}/${h}`, { install: u, handle: h, value, at: new Date(at) }); };
   const accounts = new Map<string, AccountInput & { confirmedAt: number | null }>();
   const stateOf = (h: string) => accounts.get(h) ?? {
-    handle: h, seed: false, clearedAt: null, override: null, overrideAt: null, listedAt: null, status: 'none' as const, identity: 'ok' as const, evidence: 0,
+    handle: h, seed: false, clearedAt: null, override: null, overrideAt: null, listedAt: null, firstPublicAt: null, status: 'none' as const, identity: 'ok' as const, evidence: 0,
     protected: false, confirmedAt: null,
   };
   const cleared: ClearedVoteInput[] = [];
@@ -116,8 +116,9 @@ export function campaign(o: Options): Result {
     for (const a of out.accounts) {
       const prev = stateOf(a.handle);
       const listed = a.tier >= 1;
+      const listedAt = listed ? prev.listedAt ?? new Date(now) : prev.override === 'confirm' ? prev.listedAt : null;
       accounts.set(a.handle, {
-        ...prev, status: a.status, listedAt: listed ? prev.listedAt ?? new Date(now) : prev.override === 'confirm' ? prev.listedAt : null,
+        ...prev, status: a.status, listedAt, firstPublicAt: prev.firstPublicAt ?? (listed ? listedAt : null),
         confirmedAt: a.parts.reason === 'votes_confirmed' && prev.status !== 'confirmed' ? now : prev.confirmedAt,
       });
       if (listed && !isSlop(a.handle)) { res.smearListedRuns++; listedVictims.add(a.handle); }
@@ -134,7 +135,8 @@ export function campaign(o: Options): Result {
       const confirmNow = isSlop(a.handle) && (a.status === 'pending' && a.parts.want !== null || a.parts.reason === 'votes_confirmed');
       const clearNow = !isSlop(a.handle) && (a.status === 'pending' || a.tier >= 1);
       if (confirmNow) {
-        accounts.set(a.handle, { ...s, override: 'confirm', overrideAt: new Date(at), listedAt: s.listedAt ?? new Date(at), status: 'confirmed' });
+        const listedAt = s.listedAt ?? new Date(at);
+        accounts.set(a.handle, { ...s, override: 'confirm', overrideAt: new Date(at), listedAt, firstPublicAt: s.firstPublicAt ?? listedAt, status: 'confirmed' });
         // The confirm stores the "not slop" votes set before it (round 2 H1), so a later delete keeps the penalty.
         for (const v of votes.values()) {
           if (v.handle !== a.handle || v.value !== 0) continue;
@@ -144,7 +146,7 @@ export function campaign(o: Options): Result {
         res.adminConfirms++;
         decisions++;
       } else if (clearNow) {
-        accounts.set(a.handle, { ...s, override: 'clear', overrideAt: new Date(at), listedAt: null, status: 'cleared' });
+        accounts.set(a.handle, { ...s, override: 'clear', overrideAt: new Date(at), listedAt: null, firstPublicAt: s.firstPublicAt ?? s.listedAt, status: 'cleared' });
         for (const v of votes.values()) {
           if (v.handle !== a.handle) continue;
           const ins = installs.get(v.install)!;

@@ -55,14 +55,46 @@ function byNetwork(votes: PreparedVote[], network: Int32Array, pick: (k: number)
 // install with standing carries standing when fewer than STANDING_DAILY votes of its network, slop and not slop
 // together, carried standing in the 24 hours before it. A vote past that never carries standing, so a user who
 // marks many accounts keeps standing for the first STANDING_DAILY marks of each day. A vote after now carries none.
-export function carriesStanding(votes: PreparedVote[], network: Int32Array, weight: Float64Array, standing: Uint8Array, nowMs: number): Uint8Array {
+// `spent` holds slots that already carried standing (a recorded time, or a deleted vote). A recorded slot stays
+// at its old time, so a delete or a value change does not free the place. A vote with standingAtMs already
+// carried standing: it keeps that place and does not take a second one.
+export function carriesStanding(
+  votes: PreparedVote[], network: Int32Array, weight: Float64Array, standing: Uint8Array, nowMs: number,
+  spent: readonly { n: number; atMs: number }[] = [],
+): Uint8Array {
   const out = new Uint8Array(votes.length);
-  for (const queue of byNetwork(votes, network, (k) => weight[votes[k]!.u]! > 0 && standing[votes[k]!.u] === 1).values()) {
-    queue.sort((x, y) => votes[x]!.atMs - votes[y]!.atMs || x - y);
-    const carried: number[] = []; // times of the votes that carried standing, oldest first
+  const spentByNet = new Map<number, number[]>();
+  for (const s of spent) {
+    if (s.atMs > nowMs) continue;
+    let list = spentByNet.get(s.n);
+    if (!list) spentByNet.set(s.n, (list = []));
+    list.push(s.atMs);
+  }
+  const queues = byNetwork(votes, network, (k) => weight[votes[k]!.u]! > 0 && standing[votes[k]!.u] === 1);
+  const nets = new Set<number>([...queues.keys(), ...spentByNet.keys()]);
+  for (const n of nets) {
+    const queue = queues.get(n) ?? [];
+    const slot = (k: number): number => {
+      const v = votes[k]!;
+      return Number.isNaN(v.standingAtMs) ? v.atMs : v.standingAtMs;
+    };
+    queue.sort((x, y) => slot(x) - slot(y) || x - y);
+    const phantom = (spentByNet.get(n) ?? []).sort((a, b) => a - b);
+    const carried: number[] = [];
+    let p = 0;
+    const pull = (until: number): void => {
+      while (p < phantom.length && phantom[p]! <= until) carried.push(phantom[p++]!);
+    };
     for (const k of queue) {
-      const at = votes[k]!.atMs;
+      const v = votes[k]!;
+      const fixed = !Number.isNaN(v.standingAtMs);
+      const at = fixed ? v.standingAtMs : v.atMs;
       if (at > nowMs) break;
+      pull(at);
+      if (fixed) {
+        out[k] = 1; // the slot is already in `phantom`; do not push it again
+        continue;
+      }
       if (carried.length < STANDING_DAILY || carried[carried.length - STANDING_DAILY]! <= at - DAY_MS) {
         out[k] = 1;
         carried.push(at);
@@ -107,7 +139,9 @@ function silenced(times: number[], nowMs: number): boolean {
 // Per network: 0 when it counts, 1 when its installs without standing count for nothing, 2 when all its
 // installs count for nothing. Strikes come only from the rows of cleared_votes (SPEC.md 13.5), so a vote
 // that is deleted or changed after the clear changes no strike. Per cleared account the rows of a network
-// count by majority; the strike has standing when a slop row of the network had standing at the clear.
+// count by majority. When any row of the network had standing, only those rows make the majority,
+// the same rule as the voice, so a not-slop row without standing cannot cancel a slop row with
+// standing. The strike has standing when a slop row of the network had standing at the clear.
 // A strike without standing silences only the installs without standing of the network: installs on a
 // shared address cannot silence the install with standing there. Rows of a starter account, of an account
 // that an admin confirms now and of a clear in the future give none. The rows of a banned install count
@@ -122,18 +156,22 @@ export function struckNetworks(
   for (let start = 0; start < rows.length; ) {
     const a = rows[start]!.a;
     let end = start;
-    const lean = new Map<string, { margin: number; at: number; standing: boolean }>();
+    const lean = new Map<string, { margin: number; voice: number; voiced: boolean; at: number; standing: boolean }>();
     for (; end < rows.length && rows[end]!.a === a; end++) {
       const r = rows[end]!;
       if (r.clearedAtMs > nowMs) continue;
-      const row = lean.get(r.ipHash) ?? { margin: 0, at: r.clearedAtMs, standing: false };
+      const row = lean.get(r.ipHash) ?? { margin: 0, voice: 0, voiced: false, at: r.clearedAtMs, standing: false };
       row.margin += r.value === 1 ? 1 : -1;
+      if (r.standing) {
+        row.voiced = true;
+        row.voice += r.value === 1 ? 1 : -1;
+      }
       row.at = Math.max(row.at, r.clearedAtMs);
       row.standing ||= r.value === 1 && r.standing;
       lean.set(r.ipHash, row);
     }
     const acc = accounts[a]!;
-    const slop = [...lean].filter(([, row]) => row.margin > 0);
+    const slop = [...lean].filter(([, row]) => (row.voiced ? row.voice : row.margin) > 0);
     const crowd = slop.filter(([, row]) => row.standing).length > STRIKE_MAX_CROWD;
     if (!acc.seed && acc.override !== 'confirm') {
       for (const [ip, row] of slop) {

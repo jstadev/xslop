@@ -156,6 +156,27 @@ describe.each(BACKENDS)('global list, snapshots and deltas (%s)', (backend) => {
     expect([gone.statusCode, gone.json().error.code]).toEqual([410, 'delta_gone']);
   });
 
+  it('locks and unlocks with the schema as the second key', async () => {
+    const sql: string[] = [];
+    const once = async () => {
+      await tdb.db.tx(async (q) => {
+        await publishList({
+          query: async (text, params) => {
+            sql.push(text);
+            return q.query(text, params);
+          },
+        }, new Date());
+      });
+    };
+    await once();
+    await once();
+    const locks = sql.filter((text) => text.startsWith('select pg_advisory_xact_lock'));
+    expect(locks).toEqual([
+      'select pg_advisory_xact_lock($1::int, hashtext(current_schema()))',
+      'select pg_advisory_xact_lock($1::int, hashtext(current_schema()))',
+    ]);
+  });
+
   it('publishes inside the caller transaction: pending and moved accounts never enter, a gone one stays (SPEC 13.10 item 10), and a rollback leaves nothing', async () => {
     await tdb.db.query("update accounts set status = 'confirmed', tier = 2, score = 0.9, x_user_id = '1' || length(handle) where handle in ('alpha', 'bravo', 'charlie')");
     await tdb.db.query("update accounts set identity = 'gone' where handle = 'bravo'");

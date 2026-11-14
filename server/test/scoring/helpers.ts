@@ -41,8 +41,8 @@ export const anchors = (prefix: string, n: number, o: Parameters<typeof install>
 // Brand-new installs (one hour old) at the starting reputation.
 export const fresh = (prefix: string, n: number): InstallInput[] => many(prefix, n, { ageDays: 1 / 24, reputation: 0.5 });
 
-export function vote(install: string, handle: string, value: 0 | 1, at: Date = ago(HOUR)): VoteInput {
-  return { install, handle, value, at };
+export function vote(install: string, handle: string, value: 0 | 1, at: Date = ago(HOUR), postOk = false): VoteInput {
+  return postOk ? { install, handle, value, at, postOk: true } : { install, handle, value, at };
 }
 export const allOf = (who: InstallInput[], handle: string, value: 0 | 1 = 1, at?: Date): VoteInput[] => who.map((u) => vote(u.id, handle, value, at));
 
@@ -55,6 +55,7 @@ export function account(handle: string, o: Partial<Omit<AccountInput, 'handle'>>
     override: o.override ?? null,
     overrideAt: o.overrideAt ?? null,
     listedAt: o.listedAt ?? null,
+    ...(o.firstPublicAt !== undefined ? { firstPublicAt: o.firstPublicAt } : {}),
     status: o.status ?? 'none',
     identity: o.identity ?? 'ok',
     evidence: o.evidence ?? 0,
@@ -91,6 +92,7 @@ export function input(o: Partial<ScoringInput>): ScoringInput {
   return {
     now: o.now ?? NOW, installs: o.installs ?? [], votes: o.votes ?? [], accounts: o.accounts ?? [], sightings: o.sightings ?? [],
     clearedVotes: o.clearedVotes ?? [], autoConfirmsToday: o.autoConfirmsToday ?? 0, autoFlagsToday: o.autoFlagsToday ?? 0,
+    standingSpent: o.standingSpent ?? [],
   };
 }
 

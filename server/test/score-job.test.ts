@@ -700,6 +700,127 @@ describe.each(BACKENDS)('score job (%s)', (backend) => {
     });
   });
 
+  it('keeps the first public time across a clear and a later confirm', async () => {
+    const early = await install(q, { net: 'early', days: 30 });
+    const during = await install(q, { net: 'during', days: 30 });
+    const first = ago(8 * DAY);
+    await q.query(
+      `insert into accounts (handle, x_user_id, identity, listed_at, status, tier) values ('came_back', '77', 'ok', $1, 'flagged', 1)`,
+      [first],
+    );
+    await runScoreJob(q, real());
+    const stamped = (await q.query<{ t: Date; listed: Date | null }>('select first_public_at as t, listed_at as listed from accounts where handle = $1', ['came_back'])).rows[0]!;
+    expect(stamped.t.getTime()).toBe(first.getTime());
+
+    await adminClear(q, 'came_back', false);
+    await runScoreJob(q, real());
+    const kept = (await q.query<{ t: Date; listed: Date | null }>('select first_public_at as t, listed_at as listed from accounts where handle = $1', ['came_back'])).rows[0]!;
+    expect(kept.listed).toBeNull();
+    expect(kept.t.getTime()).toBe(first.getTime());
+
+    await castVote(q, early, 'came_back', 1, { at: ago(10 * DAY) });
+    await castVote(q, during, 'came_back', 1, { at: ago(5 * DAY) });
+    await adminConfirm(q, 'came_back');
+    await runScoreJob(q, real());
+    expect(await installRow(q, early)).toMatchObject({ good_marks: 1 });
+    expect(await installRow(q, during)).toMatchObject({ good_marks: 0, reputation: 0.5 });
+    expect((await q.query<{ t: Date }>('select first_public_at as t from accounts where handle = $1', ['came_back'])).rows[0]!.t.getTime()).toBe(first.getTime());
+  });
+
+  it('keeps an earlier confirm when the current listing is later', async () => {
+    const first = ago(8 * DAY);
+    await q.query(
+      `insert into accounts (handle, listed_at, status, tier) values ('again', now(), 'confirmed', 2)`,
+    );
+    await q.query(`insert into admin_log (at, session, action, target) values ($1, 's', 'confirm', 'again')`, [first]);
+    await runScoreJob(q, real());
+    expect((await q.query<{ t: Date }>('select first_public_at as t from accounts where handle = $1', ['again'])).rows[0]!.t.getTime()).toBe(first.getTime());
+  });
+
+  it('copies the earlier first public time when a listed handle moves', async () => {
+    const early = ago(8 * DAY);
+    const late = ago(DAY);
+    await q.query(`insert into accounts (handle, first_public_at) values ('old_name', $1), ('new_name', $2)`, [early, late]);
+    await q.query(`update accounts set identity = 'moved', moved_to = 'new_name' where handle = 'old_name'`);
+    const dest = (await q.query<{ t: Date }>('select first_public_at as t from accounts where handle = $1', ['new_name'])).rows[0]!.t;
+    expect(dest.getTime()).toBe(early.getTime());
+    await q.query(`insert into accounts (handle, first_public_at) values ('from_name', $1), ('to_name', null)`, [early]);
+    await q.query(`update accounts set identity = 'moved', moved_to = 'to_name' where handle = 'from_name'`);
+    expect((await q.query<{ t: Date }>('select first_public_at as t from accounts where handle = $1', ['to_name'])).rows[0]!.t.getTime()).toBe(early.getTime());
+  });
+
+  it('a deleted standing vote still fills the 24 hour budget', async () => {
+    const ring = await install(q, { net: 'budget-ring', trusted: true });
+    const spentAt = ago(2 * HOUR);
+    for (let i = 0; i < 5; i++) await castVote(q, ring, `oldb${i}`, 1, { at: spentAt });
+    await runScoreJob(q, real());
+    expect(await account(q, 'oldb0')).toMatchObject({ parts: { anchors: 1 } });
+    expect((await q.query<{ n: number }>('select count(*)::int as n from votes where install_id = $1 and standing_at is not null', [ring])).rows[0]!.n).toBe(5);
+
+    await q.query('delete from votes where install_id = $1', [ring]);
+    expect((await q.query<{ n: number }>('select count(*)::int as n from votes where install_id = $1', [ring])).rows[0]!.n).toBe(0);
+    const kept = (await q.query<{ n: number; at: Date }>('select count(*)::int as n, min(at) as at from standing_spent where ip_hash = $1', ['budget-ring'])).rows[0]!;
+    expect(kept.n).toBe(5);
+    expect(kept.at.getTime()).toBe(spentAt.getTime());
+
+    for (let i = 0; i < 5; i++) await castVote(q, ring, `newb${i}`, 1, { at: ago(HOUR) });
+    await runScoreJob(q, real());
+    expect(await account(q, 'newb0')).toMatchObject({ parts: { anchors: 0 } });
+    expect(await account(q, 'newb4')).toMatchObject({ parts: { anchors: 0 } });
+  });
+
+  it('a value change keeps the standing budget time', async () => {
+    const ring = await install(q, { net: 'budget-flip', trusted: true });
+    const spentAt = ago(3 * HOUR);
+    for (let i = 0; i < 5; i++) await castVote(q, ring, `flip${i}`, 1, { at: spentAt });
+    await runScoreJob(q, real());
+    await q.query('update votes set value = 0, updated_at = now() where install_id = $1', [ring]);
+    for (let i = 0; i < 5; i++) await castVote(q, ring, `after${i}`, 1, { at: ago(HOUR) });
+    await runScoreJob(q, real());
+    const row = (await q.query<{ standing_at: Date; updated_at: Date }>('select standing_at, updated_at from votes where install_id = $1 and handle = $2', [ring, 'flip0'])).rows[0]!;
+    expect(row.standing_at.getTime()).toBe(spentAt.getTime());
+    expect(row.updated_at.getTime()).toBeGreaterThan(row.standing_at.getTime() + HOUR);
+    expect(await account(q, 'after0')).toMatchObject({ parts: { anchors: 0 } });
+    expect(await account(q, 'after4')).toMatchObject({ parts: { anchors: 0 } });
+  });
+
+  it('a loaded slop vote past the budget gives no evidence', async () => {
+    const flood = await install(q, { net: 'flood', trusted: true });
+    const second = await install(q, { net: 'second', trusted: true });
+    const plain = await install(q, { net: 'plain', days: 0 });
+    await q.query(`insert into accounts (handle, x_user_id, identity) values ('ev_target', '4242', 'ok')`);
+    for (let i = 0; i < NETWORK_DAILY_VOTES; i++) await castVote(q, flood, `junk${i}`, 1, { at: ago(2 * HOUR) });
+    await castVote(q, flood, 'ev_target', 1, { tweetId: '3001', at: ago(HOUR) });
+    await castVote(q, second, 'ev_target', 1, { at: ago(HOUR) });
+    await castVote(q, plain, 'ev_target', 1, { at: ago(HOUR) });
+    await q.query(`insert into evidence (tweet_id, handle, x_user_id, ok) values ('3001', 'ev_target', '4242', true)`);
+    await runScoreJob(q, real());
+    expect(await account(q, 'ev_target')).toMatchObject({ status: 'pending', tier: 0, parts: { gate: 'evidence', evidence: 0, anchors: 1 } });
+  });
+
+  it('an admin clear during the run takes the standing away before the write', async () => {
+    const voter = await install(q, { net: 'pen', days: 30, standing: true, reputation: 0.8 });
+    const plain = await install(q, { net: 'plain2', days: 0 });
+    await q.query(`insert into accounts (handle, x_user_id, identity) values ('bait', '1', 'ok'), ('live_target', '2', 'ok')`);
+    await castVote(q, voter, 'bait', 1, { at: ago(3 * HOUR) });
+    await castVote(q, voter, 'live_target', 1, { tweetId: '901', at: ago(HOUR) });
+    await castVote(q, plain, 'live_target', 1, { at: ago(HOUR) });
+    await q.query(`insert into evidence (tweet_id, handle, x_user_id, ok) values ('901', 'live_target', '2', true)`);
+    const clear = `with kept as (
+      insert into cleared_votes (handle, install_id, ip_hash, value, at, cleared_at, standing)
+      select v.handle, v.install_id, i.ip_hash, v.value, v.updated_at, now(), true
+      from votes v join installs i on i.id = v.install_id where v.handle = 'bait'
+      on conflict (handle, install_id) do nothing returning 1)
+      update accounts set override = 'clear', override_at = now(), status = 'cleared', tier = 0, score = 0,
+        cleared_at = now(), listed_at = null, clear_penalty = true, updated_at = now() where handle = 'bait'`;
+    await runScoreJob(adminDuringRun(q, clear), real());
+    expect(await account(q, 'live_target')).toMatchObject({ status: 'pending', tier: 0, parts: { anchors: 0, gate: 'standing' } });
+    expect((await installRow(q, voter)).standing).toBe(false);
+    expect((await q.query<{ status: string; override: string; listed_at: Date | null }>(`select status, override, listed_at from accounts where handle = 'bait'`)).rows[0]).toEqual({
+      status: 'cleared', override: 'clear', listed_at: null,
+    });
+  });
+
   it('runs end to end with the real scoring engine on the seed list', async () => {
     const { total } = await importSeed(q);
     const starter = (await q.query<{ handle: string }>('select handle from accounts order by handle limit 1')).rows[0]!.handle;

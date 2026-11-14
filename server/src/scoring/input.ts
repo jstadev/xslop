@@ -1,7 +1,7 @@
 // Validates a ScoringInput and puts it in a canonical order, so that the output
 // does not depend on the order of the rows that the loader sends. A bad row
 // throws, and the job keeps the previous scores (fail closed).
-import type { AccountInput, AccountStatus, ClearedVoteInput, Identity, InstallInput, ScoringInput, SightingInput, VoteInput } from './types.js';
+import type { AccountInput, AccountStatus, ClearedVoteInput, Identity, InstallInput, ScoringInput, SightingInput, StandingSpentInput, VoteInput } from './types.js';
 
 export const HANDLE_RE = /^[a-z0-9_]{1,15}$/;
 export const TWEET_ID_RE = /^[0-9]{1,20}$/;
@@ -22,12 +22,13 @@ export interface PreparedAccount {
   overrideAtMs: number; // NaN = no time
   clearedAtMs: number; // NaN = never cleared
   listedAtMs: number; // NaN = not listed
+  firstPublicAtMs: number; // NaN = never public; kept after the account leaves the list
   status: AccountStatus; // stored by the previous run
   identity: Identity;
   evidence: number;
   protected: boolean;
 }
-export interface PreparedVote { a: number; u: number; value: 0 | 1; atMs: number }
+export interface PreparedVote { a: number; u: number; value: 0 | 1; atMs: number; postOk: boolean; standingAtMs: number }
 export interface PreparedClearedVote { a: number; install: string; ipHash: string; value: 0 | 1; atMs: number; clearedAtMs: number; standing: boolean }
 
 export interface Prepared {
@@ -40,10 +41,11 @@ export interface Prepared {
   clearedVotes: PreparedClearedVote[]; // sorted by (account, install)
   autoConfirmsToday: number;
   autoFlagsToday: number;
+  standingSpent: { ipHash: string; atMs: number }[]; // deleted votes that already carried standing
 }
 
 const NO_STATE: Readonly<PreparedAccount> = Object.freeze({
-  seed: false, override: null, overrideAtMs: Number.NaN, clearedAtMs: Number.NaN, listedAtMs: Number.NaN,
+  seed: false, override: null, overrideAtMs: Number.NaN, clearedAtMs: Number.NaN, listedAtMs: Number.NaN, firstPublicAtMs: Number.NaN,
   status: 'none', identity: 'unknown', evidence: 0, protected: false,
 });
 
@@ -143,6 +145,7 @@ export function prepareInput(input: ScoringInput): Prepared {
       overrideAtMs: timeOrNull(r.overrideAt, `${p}.overrideAt`),
       clearedAtMs: timeOrNull(r.clearedAt, `${p}.clearedAt`),
       listedAtMs: timeOrNull(r.listedAt, `${p}.listedAt`),
+      firstPublicAtMs: timeOrNull(r.firstPublicAt ?? null, `${p}.firstPublicAt`),
       status: oneOf(r.status, STATUSES, `${p}.status`),
       identity: oneOf(r.identity, IDENTITIES, `${p}.identity`),
       evidence: count(r.evidence, `${p}.evidence`),
@@ -151,7 +154,7 @@ export function prepareInput(input: ScoringInput): Prepared {
     handleSet.add(handle);
   });
 
-  const rawVotes: { handle: string; u: number; value: 0 | 1; atMs: number }[] = [];
+  const rawVotes: { handle: string; u: number; value: 0 | 1; atMs: number; postOk: boolean; standingAtMs: number }[] = [];
   rows(top.votes, 'votes').forEach((value, i) => {
     const p = `votes[${i}]`;
     const r = row<VoteInput>(value, p);
@@ -159,10 +162,18 @@ export function prepareInput(input: ScoringInput): Prepared {
     const handle = handleOf(r.handle, `${p}.handle`);
     const v = voteValue(r.value, `${p}.value`);
     const atMs = timeOf(r.at, `${p}.at`);
+    if (r.postOk !== undefined && typeof r.postOk !== 'boolean') fail(`${p}.postOk`, 'must be a boolean');
+    const standingAtMs = r.standingAt == null ? Number.NaN : timeOf(r.standingAt, `${p}.standingAt`);
     handleSet.add(handle);
     const u = installIndex.get(install);
     // A vote of an install that the loader did not see carries no weight; its handle still gets an output row.
-    if (u !== undefined) rawVotes.push({ handle, u, value: v, atMs });
+    if (u !== undefined) rawVotes.push({ handle, u, value: v, atMs, postOk: r.postOk === true, standingAtMs });
+  });
+
+  const standingSpent = (top.standingSpent === undefined ? [] : rows(top.standingSpent, 'standingSpent')).map((value, i) => {
+    const p = `standingSpent[${i}]`;
+    const r = row<StandingSpentInput>(value, p);
+    return { ipHash: ipHash(r.ipHash, `${p}.ipHash`), atMs: timeOf(r.at, `${p}.at`) };
   });
 
   const rawCleared = rows(top.clearedVotes, 'clearedVotes').map((value, i) => {
@@ -198,7 +209,7 @@ export function prepareInput(input: ScoringInput): Prepared {
   handles.forEach((h, i) => handleIndex.set(h, i));
   const accounts = handles.map((h) => accountRows.get(h) ?? NO_STATE);
 
-  const votes: PreparedVote[] = rawVotes.map((v) => ({ a: handleIndex.get(v.handle)!, u: v.u, value: v.value, atMs: v.atMs }));
+  const votes: PreparedVote[] = rawVotes.map((v) => ({ a: handleIndex.get(v.handle)!, u: v.u, value: v.value, atMs: v.atMs, postOk: v.postOk, standingAtMs: v.standingAtMs }));
   votes.sort((x, y) => x.a - y.a || x.u - y.u);
   for (let i = 1; i < votes.length; i++) {
     if (votes[i]!.a === votes[i - 1]!.a && votes[i]!.u === votes[i - 1]!.u) fail('votes', 'has two votes of one install on one handle');
@@ -224,7 +235,7 @@ export function prepareInput(input: ScoringInput): Prepared {
     return idx.map((i) => sightingRows[i] as SightingInput);
   });
 
-  return { nowMs, handles, accounts, installs, votes, sightings, clearedVotes, autoConfirmsToday, autoFlagsToday };
+  return { nowMs, handles, accounts, installs, votes, sightings, clearedVotes, autoConfirmsToday, autoFlagsToday, standingSpent };
 }
 
 // Numeric order of decimal tweet ids without BigInt.

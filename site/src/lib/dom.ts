@@ -30,16 +30,22 @@ export function req<T extends Element = HTMLElement>(selector: string, root: Par
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
-/** The xslop mark from the page sprite (#xs-mark), decorative. */
-export function markIcon(): SVGSVGElement {
+/** A decorative symbol from a page sprite. */
+export function spriteIcon(href: string, viewBox: string, cls?: string): SVGSVGElement {
   const svg = document.createElementNS(SVG_NS, 'svg');
-  svg.setAttribute('viewBox', '0 0 32 32');
+  svg.setAttribute('viewBox', viewBox);
   svg.setAttribute('aria-hidden', 'true');
   svg.setAttribute('focusable', 'false');
+  if (cls) svg.setAttribute('class', cls);
   const use = document.createElementNS(SVG_NS, 'use');
-  use.setAttribute('href', '#xs-mark');
+  use.setAttribute('href', href);
   svg.append(use);
   return svg;
+}
+
+/** The xslop mark from the page sprite (#xs-mark), decorative. */
+export function markIcon(): SVGSVGElement {
+  return spriteIcon('#xs-mark', '0 0 32 32');
 }
 
 export function prefersReducedMotion(): boolean {

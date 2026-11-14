@@ -1745,10 +1745,28 @@ main {
 }
 
 .dl-card-name {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
   font-size: var(--text-xl);
   font-weight: var(--weight-display);
   font-stretch: var(--stretch-display);
   line-height: var(--leading-snug);
+}
+
+/* Browser marks: one colour, the colour of the name beside them. */
+.dl-logo {
+  flex: none;
+  width: 1.75rem;
+  height: 1.75rem;
+  fill: currentColor;
+}
+
+.install-detected .dl-logo {
+  width: 1.25rem;
+  height: 1.25rem;
+  margin-right: var(--space-2);
+  vertical-align: -0.2em;
 }
 
 .dl-yours {

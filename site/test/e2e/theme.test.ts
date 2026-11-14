@@ -93,6 +93,29 @@ for (const path of PAGES) {
   });
 }
 
+test('every page with a footer has the switch in its footer, and that switch works', async () => {
+  const { page, errors } = await visit('/');
+  try {
+    for (const path of ['/', '/how-it-works', '/rules', '/download', '/check', '/privacy', '/questions', '/sloppers']) {
+      await page.goto(`${server.url}${path}`, { waitUntil: 'load' });
+      for (const width of [390, 1440]) {
+        await page.setViewportSize({ width, height: 900 });
+        const footSwitch = page.locator('footer [data-theme-toggle]');
+        assert.equal(await footSwitch.count(), 1, `${path}: one switch in the footer`);
+        await footSwitch.scrollIntoViewIfNeeded();
+        assert.ok(await footSwitch.isVisible(), `${path}: the footer switch shows at ${width} px`);
+        const before = (await shown(page)).theme;
+        await footSwitch.click();
+        assert.notEqual((await shown(page)).theme, before, `${path}: the footer switch switches at ${width} px`);
+      }
+    }
+    assert.deepEqual(await violations(page), []);
+    assert.deepEqual(errors, []);
+  } finally {
+    await page.context().close();
+  }
+});
+
 test('/: the scene still draws after each switch, with no WebGL error', async () => {
   // A phone screen: the GL on the CPU draws it in half the time of a desktop screen.
   const { page, errors } = await visit('/', webgl, { viewport: { width: 390, height: 844 } });

@@ -71,7 +71,9 @@ for (const path of PAGES) {
         assert.ok((await page.locator('[data-theme-toggle]').filter({ visible: true }).count()) >= 1, `a switch shows at ${width} px`);
       }
 
-      for (let i = 0; i < 40 && !(await page.evaluate(() => document.activeElement?.hasAttribute('data-theme-toggle'))); i++) await page.keyboard.press('Tab');
+      // One pass of the tab order: on the landing page the only switch is in the footer (pin 354).
+      const stops = await page.locator('a[href], button, input, select, textarea, [tabindex]').count();
+      for (let i = 0; i <= stops && !(await page.evaluate(() => document.activeElement?.hasAttribute('data-theme-toggle'))); i++) await page.keyboard.press('Tab');
       assert.equal(await page.evaluate(() => document.activeElement?.hasAttribute('data-theme-toggle')), true, 'Tab reaches the switch');
       await page.keyboard.press('Enter');
       assert.deepEqual(await shown(page), LIGHT, 'Enter switches');

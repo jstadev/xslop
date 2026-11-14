@@ -186,7 +186,7 @@ export class Extension {
     return this.sw.evaluate(() => chrome.alarms.create('list', { when: Date.now() + 10 }));
   }
 
-  /** Turns on "Mute the shared list too" in the real popup page. */
+  /** Turns on "Mute the shared list" in the real popup page. */
   async muteSharedList() {
     const popup = await this.ctx.newPage();
     await popup.goto(`chrome-extension://${this.id}/popup.html`);

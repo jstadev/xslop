@@ -171,11 +171,11 @@ function stopRules(st: MuteState, r: XResult | null, cfg: MuteConfig, now: numbe
   if (r.status === 0 && r.code === NOT_LOGGED_IN) return { ...st, waiting: 'login', nextAt: next };
   // A 404 or a 403 that names no account is X refusing the REST call itself (SPEC 12.3), not an answer about this account.
   if (r.status === 401 || r.status === 429 || ((r.status === 403 || r.status === 404) && !accountCode(r.code))) {
-    return pause(st, now, `X answered ${r.status}${r.status === 429 ? ' (too many requests)' : ''}. Mute sync pauses for 24 hours.`);
+    return pause(st, now, `X answered ${r.status}${r.status === 429 ? ' (too many requests)' : ''}.`);
   }
   if (r.status === 0 || r.status >= 500) {
     const fails = st.fails + 1;
-    if (fails >= 3) return pause(st, now, 'X failed three times in a row. Mute sync pauses for 24 hours.');
+    if (fails >= 3) return pause(st, now, 'X failed three times in a row.');
     return { ...st, waiting: null, fails, nextAt: next };
   }
   return null;
@@ -189,7 +189,7 @@ export function dropNoId(st: MuteState, handle: string): MuteState {
 /** The read of your own mutes reached its page cap: xslop cannot check them all, so mute sync stops. */
 export const capStop = (st: MuteState): MuteState => ({
   ...st, waiting: null,
-  reason: 'You mute too many accounts on X for xslop to check them all, so mute sync is off.',
+  reason: 'You mute too many accounts on X. Mute sync is off.',
 });
 
 /**
@@ -260,7 +260,7 @@ export function noteWrongId(st: MuteState, w: WrongId): MuteState {
 /** A failed read of your own mutes: same stop rules; any other answer pauses, because the path may be stale. */
 export function applyReadFailure(st: MuteState, r: XResult | null, cfg: MuteConfig, now: number, rand: number): MuteState {
   return stopRules(st, r, cfg, now, rand) ??
-    pause(st, now, 'xslop could not read the accounts that you muted yourself. Mute sync pauses for 24 hours.');
+    pause(st, now, 'xslop could not read your own mutes on X.');
 }
 
 /** Whether an X result means that the X login of that tab is gone. */

@@ -78,8 +78,8 @@ export function createInstant(deps: InstantDeps): Instant {
     const h = res.handle;
     if (isOk(res.status)) deps.toast(`Muted @${h} on X`, () => deps.undo(h));
     else if (res.status === 0 && res.code === NOT_CALLED) deps.toast('Hidden here. The mute on X comes later.');
-    else if (res.status === 0 && res.code === NOT_LOGGED_IN) deps.toast('Hidden here. Log in to X to mute this account there.');
-    else if (stopsInstant(res.status)) deps.toast(`Hidden here. X limits mutes right now, so instant mutes stop for ${STOP_MINUTES} minutes.`);
+    else if (res.status === 0 && res.code === NOT_LOGGED_IN) deps.toast('Hidden here. Log in to X to mute it there.');
+    else if (stopsInstant(res.status)) deps.toast(`Hidden here. X limits mutes. Instant mute stops for ${STOP_MINUTES} minutes.`);
     else deps.toast('Hidden here. X did not accept the mute.');
   }
 

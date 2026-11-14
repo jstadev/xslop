@@ -122,7 +122,7 @@ test('when xslop cannot tell who you are and you click your own tweet, X says so
   await expect(button(page, '106')).toBeAttached();
   answers.push({ status: 403, json: { errors: [{ code: 271 }] } });
   await button(page, '106').click();
-  await expect(toast(page)).toHaveText(/This is your own account\. xslop did not mark it\./);
+  await expect(toast(page)).toHaveText(/You cannot mark your own account\./);
   await expect(tweet(page, '106')).toBeVisible();
   await expect(tweet(page, '106').locator('.xslop-host')).toHaveCount(0);
   await expect.poll(() => api.votesFor('me_user').length).toBe(0);
@@ -164,7 +164,7 @@ test('X answers 429: instant mutes stop and the toast says so; the next click ma
   answers.push({ status: 429, json: { errors: [{ code: 88 }] } });
   const page = await open(REPLY_STATUS);
   await button(page, '108').click();
-  await expect(toast(page)).toHaveText(/X limits mutes right now, so instant mutes stop for 15 minutes/);
+  await expect(toast(page)).toHaveText(/X limits mutes\. Instant mute stops for 15 minutes/);
   await button(page, '109').click();
   await expect(toast(page)).toHaveText(/The mute on X comes later/);
   expect(creates('photoguy')).toEqual([]);

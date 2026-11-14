@@ -11,6 +11,7 @@ function showStep(next: number): void {
   step = next;
   for (const section of document.querySelectorAll<HTMLElement>('.step')) section.hidden = section.id !== `step-${step}`;
   $('step-now').textContent = String(step);
+  for (const [i, bar] of document.querySelectorAll('.progress span').entries()) bar.classList.toggle('on', i < step);
   // A screen reader hears the new step, and a keyboard continues from it.
   document.querySelector<HTMLElement>(`#step-${step} h1`)?.focus();
 }

@@ -1,4 +1,4 @@
-// Popup (SPEC 12.7): the state at a glance, your accounts with one-tap undo, the settings in plain words.
+// Popup (SPEC 12.7): the state at a glance, your list with one-tap undo, the settings in short words.
 import { muteOf } from '../shared/config';
 import { ext } from '../shared/ext';
 import { cleanMute, earliest, nextOp, rollDay } from '../shared/muteplan';
@@ -8,15 +8,13 @@ import { localDay } from '../shared/util';
 import { $, bindSwitch, hostAccess, sendPage, setSettings } from './pages';
 
 const SHOW_MAX = 100;
+/** The search field shows from this many marks, or while it holds text. */
+const SEARCH_FROM = 7;
 const TOAST_MS = 6000;
 const STRICT_HINTS: Record<Stored['settings']['strictness'], string> = {
-  off: 'Hides only the accounts that you marked.',
-  balanced: 'Hides confirmed slop accounts and the accounts that you marked.',
-  strict: 'Also hides accounts that the crowd flagged but did not confirm yet.',
-};
-const DISPLAY_HINTS: Record<Stored['settings']['display'], string> = {
-  collapse: 'A hidden post stays as one line that you can open.',
-  remove: 'A hidden post leaves nothing on the page.',
+  off: 'Only your marks.',
+  balanced: 'Your marks and confirmed slop.',
+  strict: 'Also accounts the crowd flagged.',
 };
 
 let s: Stored = STORED_DEFAULTS;
@@ -37,23 +35,14 @@ function headline(): { tone: 'ok' | 'warn' | 'off'; text: string } {
   return { tone: 'ok', text: 'Hiding' };
 }
 
-/** Whether your marks count for the shared list (SPEC 13.2). Nothing until the server said it, and nothing for a banned install. */
-function standingText(): string {
-  const { standing, banned } = s.status;
-  if (banned || standing === null) return '';
-  if (standing) return 'Your marks count for the shared list.';
-  return `Your marks ${s.settings.muteOnMark ? 'hide and mute' : 'hide'} for you now. ` +
-    'They count for the shared list after a check, or once your install is old enough and has enough approved marks.';
-}
-
 function notices(): string[] {
   const out: string[] = [];
-  if (s.status.banned) out.push('This install can no longer vote. Your own list still works on this device.');
-  if (s.mute.waiting === 'login') out.push('You are not logged in to x.com in this browser. xslop still hides and votes. It can mute on X after you log in.');
-  if (s.status.updateNeeded) out.push('A newer version of xslop is available. Update it to get the latest fixes for X.');
-  if (!s.identity && s.status.installError) out.push('xslop could not register yet. Your votes wait on this device and send later.');
+  if (s.status.banned) out.push('This install can no longer vote. Your own list still works.');
+  if (s.mute.waiting === 'login') out.push('Log in to x.com to mute on X. Hiding still works.');
+  if (s.status.updateNeeded) out.push('Update xslop to keep up with changes on X.');
+  if (!s.identity && s.status.installError) out.push('xslop could not register yet. Your votes wait on this device.');
   const pending = s.outbox.ops.length;
-  if (pending && s.outbox.lastError) out.push(`${plural(pending, 'vote waits', 'votes wait')} to send. xslop tries again soon.`);
+  if (pending && s.outbox.lastError) out.push(`${plural(pending, 'vote waits', 'votes wait')} to send.`);
   if (!s.list) out.push('The shared list loads soon.');
   return out;
 }
@@ -61,9 +50,9 @@ function notices(): string[] {
 function muteStatus(st: MuteState): string {
   const cfg = muteOf(s.config);
   const now = Date.now();
-  if (!cfg.enabled) return 'Muting on X is off for everyone at the moment.';
-  if (st.pausedUntil > now) return `${st.reason ?? 'Muting on X pauses.'} It starts again at ${time(st.pausedUntil)}.`;
-  if (st.waiting === 'tab') return 'Open x.com in a tab so that xslop can finish the change on X.';
+  if (!cfg.enabled) return 'Muting on X is off for everyone right now.';
+  if (st.pausedUntil > now) return [st.reason, `Mute sync resumes at ${time(st.pausedUntil)}.`].filter(Boolean).join(' ');
+  if (st.waiting === 'tab') return 'Open an x.com tab to finish the changes on X.';
   const mine = st.muted.length ? `${plural(st.muted.length, 'account', 'accounts')} muted by xslop.` : '';
   const plan = nextOp(st, s.settings, s.votes, s.list, now);
   if (!plan) return [st.reason, mine].filter(Boolean).join(' ');
@@ -74,9 +63,7 @@ function muteStatus(st: MuteState): string {
 
 function muteText(): string {
   const st = rollDay(cleanMute(s.mute), Date.now());
-  const lost = st.lost
-    ? `xslop could not undo ${plural(st.lost, 'mute', 'mutes')} because it has no X user id for ${st.lost === 1 ? 'it' : 'them'}. Check your muted accounts in the X settings.`
-    : '';
+  const lost = st.lost ? `xslop could not undo ${plural(st.lost, 'mute', 'mutes')}. Check your muted accounts on X.` : '';
   return [muteStatus(st), lost].filter(Boolean).join(' ');
 }
 
@@ -87,18 +74,35 @@ function showToast(msg: string): void {
   toastTimer = setTimeout(hideToast, TOAST_MS);
 }
 
+/** Closes the toast. If it held the focus, the focus goes back to the list: the search field, else its heading. */
 function hideToast(): void {
-  const hadFocus = document.activeElement === $('toast-undo');
+  const hadFocus = $('toast').contains(document.activeElement);
   $('toast').hidden = true;
   removed = null;
-  if (hadFocus) $('search').focus();
+  if (hadFocus) ($('search').hidden ? $('h-list') : $('search')).focus();
 }
 
-/** The mute state of one marked account, for its tag. */
-function muteTag(st: MuteState, h: string): string {
-  if (st.muted.some((e) => e[0] === h)) return 'Muted on X';
-  if (st.retry.some((e) => e[0] === h)) return 'Mute waits';
-  return st.skipped.find((e) => e[0] === h)?.[1] === 'own' ? 'You muted it' : 'Hidden';
+/** The state of one marked account, for its tag. */
+function tagText(st: MuteState, v: Vote): string {
+  if (v.v !== 1) return 'Not slop';
+  if (st.muted.some((e) => e[0] === v.h)) return 'Muted';
+  if (st.retry.some((e) => e[0] === v.h)) return 'Mute waits';
+  return st.skipped.find((e) => e[0] === v.h)?.[1] === 'own' ? 'Muted by you' : 'Hidden';
+}
+
+function paintTag(tag: Element, st: MuteState, v: Vote): void {
+  tag.className = v.v === 1 ? 'tag slop' : 'tag ok';
+  tag.textContent = tagText(st, v);
+}
+
+/** Removes your mark on `h`. The toast can put back the vote as it is now, not as it was when the row was drawn. */
+function undoMark(h: string): void {
+  const v = s.votes.find((x) => x.h === h);
+  if (!v) return;
+  removed = v;
+  void sendPage({ t: 'unvote', handle: h });
+  showToast(`Removed @${h}.`);
+  $('toast-undo').focus();
 }
 
 function row(v: Vote, st: MuteState): HTMLLIElement {
@@ -110,37 +114,34 @@ function row(v: Vote, st: MuteState): HTMLLIElement {
   a.rel = 'noopener';
   a.textContent = `@${v.h}`;
   const tag = document.createElement('span');
-  tag.className = v.v === 1 ? 'tag slop' : 'tag ok';
-  tag.textContent = v.v === 1 ? muteTag(st, v.h) : 'Not slop';
+  paintTag(tag, st, v);
   const undo = document.createElement('button');
   undo.type = 'button';
   undo.className = 'link';
   undo.textContent = 'Undo';
   undo.setAttribute('aria-label', `Undo your mark on @${v.h}`);
-  undo.onclick = () => {
-    removed = v;
-    void sendPage({ t: 'unvote', handle: v.h });
-    showToast(`Removed @${v.h}.`);
-    $('toast-undo').focus();
-  };
+  undo.onclick = () => undoMark(v.h);
   li.append(a, tag, undo);
   return li;
 }
 
 function renderList(): void {
-  const q = $<HTMLInputElement>('search').value.trim().replace(/^@/, '').toLowerCase();
+  const search = $<HTMLInputElement>('search');
+  const q = search.value.trim().replace(/^@/, '').toLowerCase();
   const all = s.votes.slice().sort((a, b) => b.at - a.at);
+  search.hidden = all.length < SEARCH_FROM && !search.value;
   const match = q ? all.filter((v) => v.h.includes(q)) : all;
   const shown = match.slice(0, SHOW_MAX);
-  $('count').textContent = all.length ? `(${count(all.length)})` : '';
+  $('count').textContent = all.length ? count(all.length) : '';
   const st = cleanMute(s.mute);
   const key = shown.map((v) => v.h).join();
   const ul = $('votes');
   if (key === shownKey) {
-    for (const li of ul.children) {
-      const v = shown.find((x) => x.h === (li as HTMLLIElement).dataset.handle);
+    const byHandle = new Map(shown.map((v) => [v.h, v]));
+    for (const li of ul.querySelectorAll('li')) {
+      const v = byHandle.get(li.dataset.handle ?? '');
       const tag = li.querySelector('.tag');
-      if (v && tag) tag.textContent = v.v === 1 ? muteTag(st, v.h) : 'Not slop';
+      if (v && tag) paintTag(tag, st, v);
     }
   } else {
     shownKey = key;
@@ -148,10 +149,10 @@ function renderList(): void {
   }
   const more = $('more');
   more.hidden = match.length <= SHOW_MAX;
-  more.textContent = `Shows ${SHOW_MAX} of ${count(match.length)}. Search to find the rest.`;
+  more.textContent = `Showing ${SHOW_MAX} of ${count(match.length)}. Search to find more.`;
   const empty = $('empty');
   empty.hidden = match.length > 0;
-  empty.textContent = q ? 'No account on your list matches.' : 'Your list is empty. Click the xslop button on a post to add its author.';
+  empty.textContent = q ? 'No match.' : 'No marks yet. Click the xslop button on a post.';
 }
 
 function renderNotices(): void {
@@ -172,19 +173,16 @@ function render(): void {
   $('stat-hidden').textContent = count(hidden);
   $('stat-list').textContent = count(s.list?.accounts.length ?? 0);
   $('stat-mine').textContent = count(s.votes.filter((v) => v.v === 1).length);
-  const standing = standingText();
-  $('standing').textContent = standing;
-  $('standing').hidden = !standing;
+  // SPEC 13.8: the tag shows only once the server said that your marks count, and never for a banned install.
+  $('standing').hidden = s.status.standing !== true || s.status.banned;
   renderNotices();
   for (const el of document.querySelectorAll<HTMLInputElement>('input[name="strictness"]')) el.checked = el.value === s.settings.strictness;
   for (const el of document.querySelectorAll<HTMLInputElement>('input[name="display"]')) el.checked = el.value === s.settings.display;
   $('strict-hint').textContent = STRICT_HINTS[s.settings.strictness];
-  $('display-hint').textContent = DISPLAY_HINTS[s.settings.display];
   $<HTMLInputElement>('share').checked = s.settings.share;
   $<HTMLInputElement>('mute').checked = s.settings.mute;
   $<HTMLInputElement>('mute-mark').checked = s.settings.muteOnMark;
-  const cfg = muteOf(s.config);
-  $('mute-hint').textContent = `Mutes confirmed accounts on your X account, one by one, at most ${cfg.maxPerDay} a day. It needs an open x.com tab.`;
+  $('mute-max').textContent = String(muteOf(s.config).maxPerDay);
   $('mute-state').textContent = muteText();
   $('undo-mutes').hidden = !s.mute.muted.length || s.mute.undoAll;
   renderList();

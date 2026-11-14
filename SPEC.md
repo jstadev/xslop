@@ -638,6 +638,13 @@ Targets: `chrome` zip (Chrome, Edge, Brave, Opera, Vivaldi, Arc and every other 
 
 The best UX on X, easy from the first minute. The button sits in X's action row and looks native on all three X themes and at phone width. Popup: state at a glance, your marked accounts with search and one-tap undo, the mute and hide settings in plain words. Onboarding: three short steps, the first one says what a click does (hides, mutes on X, adds one vote). Keyboard and screen reader complete.
 
+Minimal popup (2026-11-14, wins over 7.5 and 12.13 where they differ):
+- With 4 marks and no notice, the popup fits Chrome's popup height of 600 px at 360 px wide.
+- Three numbers (hidden today, shared list, you marked). Your list with one-tap Undo; the search field shows from 7 marks, or while it holds text.
+- Settings are compact rows: `Hide` (Off, Balanced, Strict) with one hint line, `Hidden posts` (One line, Remove), and three switches with one hint line each.
+- Standing: a tag `Counts for the shared list` shows only when `/me` says `standing: true`. Without standing the popup says nothing about it.
+- Short sentences in every popup, onboarding and toast text. Step 3 still names every field that a vote and a signal carry.
+
 ### 12.8 Pages
 
 - Both pass the maintainer's design gate (`site/test/e2e/gate.test.ts`). X lights-out black, blue as the only glow, Mona Sans variable at 125% width for display type. Never a floating pill navbar, never a big left-aligned hero title over a 3D scene, never dark rounded boxes around content.

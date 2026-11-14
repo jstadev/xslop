@@ -2,7 +2,7 @@
 import { parseConfig } from './config';
 import { ext } from './ext';
 import { isObj } from './util';
-import { STORED_DEFAULTS, type Observation, type Stored, type StoredList } from './types';
+import { STORED_DEFAULTS, type Observation, type OutOp, type Stored, type StoredList } from './types';
 
 export type StoredKey = keyof Stored;
 
@@ -48,8 +48,17 @@ export async function readStored<K extends StoredKey>(keys: readonly K[]): Promi
   if (stored.list) stored.list = idsBesideRows(stored.list);
   if (stored.votes) stored.votes = stored.votes.map(withoutText);
   if (stored.outbox) {
-    const { ops, obs } = stored.outbox;
-    stored.outbox = { ...stored.outbox, ops: ops.map((op) => (op.k === 'vote' ? { ...op, body: withoutText(op.body) } : op)), obs: obs.map(observation) };
+    const ops: unknown = stored.outbox.ops;
+    const obs: unknown = stored.outbox.obs;
+    const cleanOps: OutOp[] = Array.isArray(ops)
+      ? ops.flatMap((op): OutOp[] => {
+          if (!isObj(op)) return [];
+          if (op.k === 'vote' && isObj(op.body)) return [{ ...op, body: withoutText(op.body) } as unknown as OutOp];
+          return [op as unknown as OutOp];
+        })
+      : [];
+    const cleanObs: Observation[] = Array.isArray(obs) ? obs.flatMap((o) => (isObj(o) ? [observation(o as unknown as Observation)] : [])) : [];
+    stored.outbox = { ...stored.outbox, ops: cleanOps, obs: cleanObs };
   }
   return out;
 }

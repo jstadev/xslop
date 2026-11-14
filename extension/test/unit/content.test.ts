@@ -157,7 +157,7 @@ describe('click, show, undo', () => {
       },
     });
     const [vote] = sentOf('vote');
-    expect(vote).toEqual({
+    expect(vote).toMatchObject({
       t: 'vote', handle: 'slopbot', value: 'slop', tweetId: '101', parentTweetId: '100', postedAt: '2026-11-07T09:10:12.000Z', context: 'reply',
     });
     expect(parseContentMsg(vote)).not.toBeNull();
@@ -187,7 +187,7 @@ describe('click, show, undo', () => {
     expect(isHidden('101')).toBe(false);
     expect(isHidden('103')).toBe(false);
     // No await before this line: a tab that closes during the X call cannot lose the undo.
-    expect(sentOf('unvote')).toEqual([{ t: 'unvote', handle: 'slopbot' }]);
+    expect(sentOf('unvote')).toMatchObject([{ t: 'unvote', handle: 'slopbot' }]);
     await settled();
     expect(sentOf('muteRecord')).toEqual([{ t: 'muteRecord', handle: 'slopbot' }]);
     expect(xBodies(X_DESTROY)).toEqual(['user_id=1234567890']);
@@ -255,7 +255,7 @@ describe('click, show, undo', () => {
     await settled();
     expect(fetchMock).not.toHaveBeenCalled();
     expect(sentOf('muted')).toHaveLength(before);
-    expect(sentOf('unvote').at(-1)).toEqual({ t: 'unvote', handle: 'flaggedone' });
+    expect(sentOf('unvote').at(-1)).toMatchObject({ t: 'unvote', handle: 'flaggedone' });
     await setSettings({});
   });
 
@@ -410,7 +410,7 @@ describe('other surfaces', () => {
     await frames(1);
     expect(isHidden('205')).toBe(false);
     expect(articleOf('205').querySelector('.xslop-host')).toBeNull();
-    expect(sentOf('unvote').at(-1)).toEqual({ t: 'unvote', handle });
+    expect(sentOf('unvote').at(-1)).toMatchObject({ t: 'unvote', handle });
     expect(toastText()).toBe('This is your own account. xslop did not mark it.');
   });
 });

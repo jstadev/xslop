@@ -22,17 +22,33 @@ export class TokenBucket {
     this.perMs = capacity / windowMs;
   }
 
-  private current(key: string, now: number): Bucket {
+  private fresh(b: Bucket, now: number): number {
+    if (now <= b.at) return b.tokens;
+    return Math.min(this.capacity, b.tokens + (now - b.at) * this.perMs);
+  }
+
+  /**
+   * The bucket for `key`. A new key is stored when the map has room, or when the oldest key has refilled.
+   * A short oldest key stays, so a full map cannot reset a bucket that is still paying for a limit.
+   * Returns null when `key` is new and that oldest key is still short.
+   */
+  private current(key: string, now: number): Bucket | null {
     let b = this.buckets.get(key);
-    if (!b) {
-      // Full: drop the oldest key. Its next request starts with a full bucket.
-      if (this.buckets.size >= this.maxKeys) this.buckets.delete(this.buckets.keys().next().value!);
-      b = { tokens: this.capacity, at: now };
-      this.buckets.set(key, b);
-    } else if (now > b.at) {
-      b.tokens = Math.min(this.capacity, b.tokens + (now - b.at) * this.perMs);
-      b.at = now;
+    if (b) {
+      if (now > b.at) {
+        b.tokens = this.fresh(b, now);
+        b.at = now;
+      }
+      return b;
     }
+    if (this.buckets.size >= this.maxKeys) {
+      const oldestKey = this.buckets.keys().next().value!;
+      const oldest = this.buckets.get(oldestKey)!;
+      if (this.fresh(oldest, now) < this.capacity) return null;
+      this.buckets.delete(oldestKey);
+    }
+    b = { tokens: this.capacity, at: now };
+    this.buckets.set(key, b);
     return b;
   }
 
@@ -44,22 +60,22 @@ export class TokenBucket {
   take(key: string, now: number, cost = 1): Take {
     this.sweep(now);
     const b = this.current(key, now);
-    if (b.tokens >= cost) {
-      b.tokens -= cost;
-      return { ok: true };
-    }
-    return { ok: false, retryAfterSec: this.wait(b, cost) };
+    if (!b || b.tokens < cost) return { ok: false, retryAfterSec: this.wait({ tokens: b?.tokens ?? 0, at: now }, cost) };
+    b.tokens -= cost;
+    return { ok: true };
   }
 
   /** Reports whether `cost` tokens are there, without taking them. */
   peek(key: string, now: number, cost = 1): Take {
     const b = this.current(key, now);
-    return b.tokens >= cost ? { ok: true } : { ok: false, retryAfterSec: this.wait(b, cost) };
+    if (!b || b.tokens < cost) return { ok: false, retryAfterSec: this.wait({ tokens: b?.tokens ?? 0, at: now }, cost) };
+    return { ok: true };
   }
 
   /** Returns tokens taken for an attempt that must not count (for example a successful login). */
   refund(key: string, now: number, cost = 1): void {
     const b = this.current(key, now);
+    if (!b) return;
     b.tokens = Math.min(this.capacity, b.tokens + cost);
   }
 
@@ -91,8 +107,8 @@ export function takeAll(now: number, cost: number, pairs: [TokenBucket, string][
 
 /**
  * At most `max` events per key in any `windowMs`: a log of the accepted times. Map order is the
- * order of the last accepted event, so expired keys are a prefix of the map and the key cap
- * drops the key that was idle longest.
+ * order of the last accepted event, so expired keys are a prefix of the map. The key cap drops
+ * the oldest key when that key is under its limit. A key that is still at its limit stays.
  */
 export class SlidingLimit {
   private readonly log = new Map<string, number[]>();
@@ -110,11 +126,19 @@ export class SlidingLimit {
       if (times[times.length - 1]! > cutoff) break;
       this.log.delete(k);
     }
-    const live = (this.log.get(key) ?? []).filter((t) => t > cutoff);
+    const known = this.log.get(key);
+    const live = (known ?? []).filter((t) => t > cutoff);
     if (live.length >= this.max) return false;
     live.push(now);
-    this.log.delete(key);
-    if (this.log.size >= this.maxKeys) this.log.delete(this.log.keys().next().value!);
+    if (known) this.log.delete(key);
+    if (!known && this.log.size >= this.maxKeys) {
+      const oldestKey = this.log.keys().next().value!;
+      const oldest = this.log.get(oldestKey)!;
+      let n = 0;
+      for (const t of oldest) if (t > cutoff) n++;
+      if (n >= this.max) return false;
+      this.log.delete(oldestKey);
+    }
     this.log.set(key, live);
     return true;
   }
@@ -171,6 +195,9 @@ export function createLimits() {
     avatars: new TokenBucket(1200, MIN),
     health: new TokenBucket(120, MIN),
     adminLoginFailures: new TokenBucket(5, 15 * MIN),
+    // Not in the spec table. Password checks of all networks together, under one key. A valid unused TOTP code does
+    // not spend it, so a flood of wrong passwords cannot shut the admin out. The bucket refills with time.
+    adminLoginGlobal: new TokenBucket(30, 15 * MIN),
     // Not in the spec table. Wrong codes with the right password, of all networks together under one key: only a
     // holder of the password spends it, and the 5 failures per network do not stop a guesser with many networks.
     adminCodeFailures: new TokenBucket(10, 15 * MIN),

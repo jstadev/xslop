@@ -1,6 +1,6 @@
 // Typed messages between content script, popup/onboarding and background, with strict validators.
 import {
-  BEARER_RE, HANDLE_RE, isInt, isIso, isObj, isStr, isTweetId, isXCode, isXId, isXStatus, normHandle, onlyKeys,
+  BEARER_RE, HANDLE_RE, UUID_RE, isInt, isIso, isObj, isStr, isTweetId, isXCode, isXId, isXStatus, normHandle, onlyKeys,
 } from './util';
 import type { ListRow, Observation, Settings, Vote, VoteBody } from './types';
 import { parseDelta } from './list';
@@ -25,6 +25,12 @@ export interface MuteResult {
   op: 'create' | 'destroy';
 }
 
+/**
+ * A content-script action id. `s` is one script lifetime and `n` counts its vote and unvote actions.
+ * A resend carries the same pair. Absent on a message from a build that has no stamp.
+ */
+export interface ActStamp { n?: number; s?: string }
+
 /** The answer to `muteRecord`: the user id to unmute, or null when xslop may not unmute this account. */
 export interface MuteRecordReply {
   id: string | null;
@@ -33,8 +39,8 @@ export interface MuteRecordReply {
 }
 
 export type ContentMsg =
-  | ({ t: 'vote' } & VoteBody)
-  | { t: 'unvote'; handle: string }
+  | ({ t: 'vote' } & VoteBody & ActStamp)
+  | ({ t: 'unvote'; handle: string } & ActStamp)
   | { t: 'observe'; items: Observation[] }
   | { t: 'hidden'; ids: string[] }
   | { t: 'hello' }
@@ -72,6 +78,16 @@ export type BgMsg =
 const handleOk = (x: unknown): x is string => typeof x === 'string' && HANDLE_RE.test(x);
 const nullable = <T>(x: unknown, ok: (y: unknown) => y is T): x is T | null => x === null || ok(x);
 
+/** `{}` when the message has no stamp, the stamp when both fields are valid, or null when the stamp is bad. */
+function actStamp(x: Record<string, unknown>, keys: readonly string[]): ActStamp | null {
+  const hasN = 'n' in x;
+  const hasS = 's' in x;
+  if (!hasN && !hasS) return onlyKeys(x, keys) ? {} : null;
+  if (!hasN || !hasS || !onlyKeys(x, [...keys, 'n', 's'])) return null;
+  if (!isInt(x.n, 1, Number.MAX_SAFE_INTEGER) || typeof x.s !== 'string' || !UUID_RE.test(x.s)) return null;
+  return { n: x.n, s: x.s };
+}
+
 function parseVoteBody(o: Record<string, unknown>): VoteBody | null {
   const handle = normHandle(o.handle);
   if (!handle || (o.value !== 'slop' && o.value !== 'not_slop') || !isTweetId(o.tweetId)) return null;
@@ -91,13 +107,14 @@ export function parseContentMsg(x: unknown): ContentMsg | null {
   if (!isObj(x) || typeof x.t !== 'string') return null;
   switch (x.t) {
     case 'vote': {
-      if (!onlyKeys(x, ['t', 'handle', 'value', 'tweetId', 'parentTweetId', 'postedAt', 'context'])) return null;
-      const v = parseVoteBody(x);
-      return v && { t: 'vote', ...v };
+      const stamp = actStamp(x, ['t', 'handle', 'value', 'tweetId', 'parentTweetId', 'postedAt', 'context']);
+      const v = stamp && parseVoteBody(x);
+      return v && { t: 'vote', ...v, ...stamp };
     }
     case 'unvote': {
       const handle = normHandle(x.handle);
-      return handle && onlyKeys(x, ['t', 'handle']) ? { t: 'unvote', handle } : null;
+      const stamp = actStamp(x, ['t', 'handle']);
+      return handle && stamp ? { t: 'unvote', handle, ...stamp } : null;
     }
     case 'observe': {
       if (!onlyKeys(x, ['t', 'items']) || !Array.isArray(x.items) || x.items.length < 1 || x.items.length > OBS_MAX) return null;

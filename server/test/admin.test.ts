@@ -1,7 +1,19 @@
 import { createHash } from 'node:crypto';
 import { Writable } from 'node:stream';
 import pg from 'pg';
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+
+const scryptChecks = vi.hoisted(() => ({ n: 0 }));
+vi.mock('node:crypto', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:crypto')>();
+  return {
+    ...actual,
+    scrypt: (...args: Parameters<typeof actual.scrypt>) => {
+      scryptChecks.n += 1;
+      return actual.scrypt(...args);
+    },
+  };
+});
 import { buildApp, loggerOptions } from '../src/app.js';
 import type { Db } from '../src/db.js';
 import { runScoreJob } from '../src/jobs/score-job.js';
@@ -54,23 +66,32 @@ describe.each(BACKENDS)('admin API (%s)', (backend) => {
       // The old cookie name is not a session any more.
       expect((await t.app.inject({ url: '/api/admin/session', headers: { cookie: `xs_admin=${token}` } })).statusCode).toBe(401);
     });
-    it('rejects a wrong password and a wrong user in about the same time', async () => {
-      const time = async (user: string, pw: string, ip: string) => {
-        const t0 = performance.now();
+    it('runs scrypt for a wrong password and for a wrong user', async () => {
+      const once = async (user: string, pw: string, ip: string) => {
+        const before = scryptChecks.n;
         const r = await login(user, pw, { origin: ORIGIN, ...fromIp(ip) });
         expect([r.statusCode, r.json().error.code]).toEqual([401, 'invalid_credentials']);
         expect(r.headers['set-cookie']).toBeUndefined();
-        return performance.now() - t0;
+        // Both paths run the full scrypt: a bad user is not answered early.
+        expect(scryptChecks.n - before).toBe(1);
       };
-      const badPw: number[] = [];
-      const badUser: number[] = [];
-      for (let i = 0; i < 3; i++) {
-        badPw.push(await time(ADMIN_USER, 'wrong password here', `203.0.${i}.1`));
-        badUser.push(await time('intruder', ADMIN_PASSWORD, `203.1.${i}.1`));
-      }
-      // Both paths run the full scrypt: a bad user is not answered early.
-      expect(Math.min(...badUser) / Math.min(...badPw)).toBeGreaterThan(0.5);
+      await once(ADMIN_USER, 'wrong password here', '203.0.10.1');
+      await once('intruder', ADMIN_PASSWORD, '203.1.10.1');
     });
+    it('caps password checks of every network together and refills with time', async () => {
+      for (let i = 0; i < 30; i++) {
+        const r = await login(ADMIN_USER, `wrong ${i}`, { origin: ORIGIN, ...fromIp(`198.51.${i}.1`) });
+        expect(r.statusCode).toBe(401);
+      }
+      const before = scryptChecks.n;
+      const blocked = await login(ADMIN_USER, ADMIN_PASSWORD, { origin: ORIGIN, ...fromIp('203.0.113.9') });
+      expect([blocked.statusCode, blocked.json().error.code]).toEqual([429, 'rate_limited']);
+      expect(Number(blocked.headers['retry-after'])).toBeGreaterThan(0);
+      // The global budget is empty, so this guess does not reach scrypt and does not burn the network.
+      expect(scryptChecks.n).toBe(before);
+      t.clock.advance(15 * 60_000);
+      expect((await login(ADMIN_USER, ADMIN_PASSWORD, { origin: ORIGIN, ...fromIp('203.0.113.9') })).statusCode).toBe(200);
+    }, 120_000);
     it('locks a network out after 5 failures in 15 minutes, even with the right password', async () => {
       for (let i = 0; i < 5; i++) expect((await login(ADMIN_USER, `wrong ${i}`)).statusCode).toBe(401);
       const locked = await login();
@@ -427,6 +448,18 @@ describe.each(BACKENDS)('admin API (%s)', (backend) => {
       t2.clock.advance(90_000);
       expect((await login2(hotp(key, step()), ADMIN_PASSWORD, '203.0.99.1')).statusCode).toBe(200);
     });
+
+    it('does not let a password flood block a login that has a valid code', async () => {
+      const wrong = hotp(key, step() + 5);
+      for (let i = 0; i < 30; i++) {
+        expect((await login2(wrong, 'a wrong password', `198.18.${i}.1`)).statusCode).toBe(401);
+      }
+      const before = scryptChecks.n;
+      const flooded = await login2(wrong, ADMIN_PASSWORD, '203.0.113.20');
+      expect([flooded.statusCode, flooded.json().error.code]).toEqual([429, 'rate_limited']);
+      expect(scryptChecks.n).toBe(before);
+      expect((await login2(hotp(key, step()), ADMIN_PASSWORD, '203.0.113.21')).statusCode).toBe(200);
+    }, 120_000);
 
     it('needs no code when the secret is not set, and ignores one', async () => {
       expect((await login()).statusCode).toBe(200);

@@ -2,6 +2,13 @@
 
 export type Row = Record<string, unknown>;
 
+/** Bidi overrides and control characters. Newline and tab stay, so a message keeps its lines. */
+const CONTROLS = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f\u200e\u200f\u202a-\u202e\u2066-\u2069]/g;
+
+export function stripControls(s: string): string {
+  return s.replace(CONTROLS, '');
+}
+
 export const isRow = (v: unknown): v is Row => typeof v === 'object' && v !== null && !Array.isArray(v);
 
 export function listFrom(body: unknown, name: string): Row[] {
@@ -16,7 +23,7 @@ export function field(row: Row, ...names: string[]): unknown {
 
 export function str(row: Row, ...names: string[]): string {
   const v = field(row, ...names);
-  return typeof v === 'string' ? v : '';
+  return typeof v === 'string' ? stripControls(v) : '';
 }
 
 export function num(row: Row, ...names: string[]): number | null {
@@ -33,5 +40,7 @@ export const rows = (v: unknown): Row[] => (Array.isArray(v) ? v.filter(isRow) :
 /** A string, or null when the field is missing or empty. */
 export function strOrNull(row: Row, name: string): string | null {
   const v = row[name];
-  return typeof v === 'string' && v !== '' ? v : null;
+  if (typeof v !== 'string' || v === '') return null;
+  const clean = stripControls(v);
+  return clean === '' ? null : clean;
 }

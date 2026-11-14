@@ -1,6 +1,5 @@
 /** Hashes and tokens: the network hash of an address, proof-of-work challenges, admin password hashes, constant-time compare. */
 import { createHash, createHmac, randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
-import { isIPv4, isIPv6 } from 'node:net';
 
 export const b64url = (buf: Buffer | Uint8Array): string => Buffer.from(buf).toString('base64url');
 export const sha256 = (data: string | Buffer | Uint8Array): Buffer => createHash('sha256').update(data).digest();
@@ -9,8 +8,22 @@ export const randomToken = (bytes = 32): string => randomBytes(bytes).toString('
 
 // ---- IP hash (section 5.1) ----
 
-function expandIPv6(ip: string): number[] | null {
-  const addr = ip.split('%')[0] ?? '';
+/** Four decimal octets, 0 to 255. A leading zero is decimal, not octal. */
+function parseV4(s: string): [number, number, number, number] | null {
+  const parts = s.split('.');
+  if (parts.length !== 4) return null;
+  const out = [0, 0, 0, 0] as [number, number, number, number];
+  for (let i = 0; i < 4; i++) {
+    const p = parts[i]!;
+    if (!/^[0-9]{1,3}$/.test(p)) return null;
+    const n = Number(p);
+    if (n > 255) return null;
+    out[i] = n;
+  }
+  return out;
+}
+
+function expandIPv6(addr: string): number[] | null {
   const halves = addr.split('::');
   if (halves.length > 2) return null;
   const part = (s: string | undefined) => (s ? s.split(':') : []);
@@ -23,16 +36,64 @@ function expandIPv6(ip: string): number[] | null {
   return out.some(Number.isNaN) ? null : out;
 }
 
-/** IPv4 /24 or IPv6 /48 of the client. IPv4-mapped IPv6 counts as IPv4. */
-export function ipPrefix(ip: string): string {
-  const mapped = /^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/i.exec(ip);
-  const v4 = mapped ? mapped[1]! : ip;
-  if (isIPv4(v4)) return v4.split('.').slice(0, 3).join('.') + '.0/24';
-  if (isIPv6(ip)) {
-    const g = expandIPv6(ip);
-    if (g) return g.slice(0, 3).map((x) => x.toString(16)).join(':') + '::/48';
+/** Eight groups. A trailing dotted quad becomes the last two groups first, so every spelling parses. */
+function parseIPv6(ip: string): number[] | null {
+  const zone = ip.indexOf('%');
+  let addr = zone >= 0 ? ip.slice(0, zone) : ip;
+  const lastColon = addr.lastIndexOf(':');
+  if (lastColon < 0) return null;
+  const tail = addr.slice(lastColon + 1);
+  if (tail.includes('.')) {
+    const v4 = parseV4(tail);
+    if (!v4) return null;
+    const hi = ((v4[0] << 8) | v4[1]).toString(16);
+    const lo = ((v4[2] << 8) | v4[3]).toString(16);
+    addr = `${addr.slice(0, lastColon + 1)}${hi}:${lo}`;
   }
-  return 'unknown';
+  return expandIPv6(addr);
+}
+
+function v4prefix(hi: number, lo: number): string {
+  return `${hi >> 8}.${hi & 0xff}.${lo >> 8}.0/24`;
+}
+
+function zeros(g: number[], from: number, to: number): boolean {
+  for (let i = from; i < to; i++) if (g[i] !== 0) return false;
+  return true;
+}
+
+/** The /24 of an embedded IPv4, or null when this address is an ordinary IPv6 network. */
+function embeddedV4(g: number[]): string | null {
+  // IPv4-mapped ::ffff:0:0/96, dotted or hex.
+  if (zeros(g, 0, 5) && g[5] === 0xffff) return v4prefix(g[6]!, g[7]!);
+  // IPv4-translated ::ffff:0:0:0/96. This is not the mapped form: ffff sits one group earlier.
+  if (zeros(g, 0, 4) && g[4] === 0xffff && g[5] === 0) return v4prefix(g[6]!, g[7]!);
+  // IPv4-compatible ::/96. :: and ::1 stay one IPv6 network.
+  if (zeros(g, 0, 6) && !(g[6] === 0 && (g[7] === 0 || g[7] === 1))) return v4prefix(g[6]!, g[7]!);
+  // 6to4 2002::/16. The IPv4 is the next 32 bits, so one /24 is one network.
+  if (g[0] === 0x2002) return v4prefix(g[1]!, g[2]!);
+  // Teredo 2001:0::/32. The client IPv4 is the last 32 bits with each bit flipped.
+  if (g[0] === 0x2001 && g[1] === 0) return v4prefix(g[6]! ^ 0xffff, g[7]! ^ 0xffff);
+  // NAT64 well-known 64:ff9b::/96.
+  if (g[0] === 0x64 && g[1] === 0xff9b && zeros(g, 2, 6)) return v4prefix(g[6]!, g[7]!);
+  // NAT64 local 64:ff9b:1::/48 (RFC 6052, prefix length 48). The u byte must be 0.
+  if (g[0] === 0x64 && g[1] === 0xff9b && g[2] === 1 && (g[4]! >> 8) === 0) {
+    return `${g[3]! >> 8}.${g[3]! & 0xff}.${g[4]! & 0xff}.0/24`;
+  }
+  return null;
+}
+
+/** IPv4 /24, or the embedded IPv4 /24 of a transition address, or the IPv6 /48. A zone id is ignored. */
+export function ipPrefix(ip: string): string {
+  const zone = ip.indexOf('%');
+  const bare = zone >= 0 ? ip.slice(0, zone) : ip;
+  if (!bare.includes(':')) {
+    const v4 = parseV4(bare);
+    return v4 ? `${v4[0]}.${v4[1]}.${v4[2]}.0/24` : 'unknown';
+  }
+  const g = parseIPv6(bare);
+  if (!g) return 'unknown';
+  return embeddedV4(g) ?? `${g[0]!.toString(16)}:${g[1]!.toString(16)}:${g[2]!.toString(16)}::/48`;
 }
 
 export function ipHash(salt: Buffer, ip: string): string {

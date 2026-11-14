@@ -7,6 +7,7 @@ import {
   activityDetail,
   activitySentence,
   changedFields,
+  showValue,
   checklist,
   checklistNote,
   marksSentence,
@@ -20,6 +21,8 @@ import {
   type Seg,
 } from '../../src/admin/explain.ts';
 import { readAccount, readActivity, readRules, readStanding, type AccountFacts, type Rules } from '../../src/admin/model.ts';
+import { rawState } from '../../src/admin/feed.ts';
+import { str, strOrNull } from '../../src/admin/rows.ts';
 
 const RULES: Rules = {
   standingMinAgeDays: 7,
@@ -330,6 +333,7 @@ describe('activity sentences', () => {
     assert.equal(one({ kind: 'list', subject: '118', data: { version: 118, count: 873, addedCount: 1, removedCount: 1 } }), 'The list went to version 118: 1 joined or changed, 1 left, 873 accounts in total.');
     assert.equal(one({ kind: 'appeal', subject: 'xs_a', data: {} }), 'An appeal for @xs_a arrived.');
     assert.equal(one({ kind: 'run', data: { job: 'profiles', ms: 21_500, error: 'fetch failed' } }), 'The X facts job failed after 21.5 s: fetch failed.');
+    assert.equal(one({ kind: 'run', data: { job: 'profiles', ms: 1000, error: 'fail\u202e.exe' } }), 'The X facts job failed after 1.0 s: fail.exe.');
     assert.equal(one({ kind: 'run', data: { job: 'score', ms: 800 } }), 'The score job failed after 800 ms: no error text.');
     assert.equal(one({ kind: 'vote', subject: 'xs_a', data: { install: ID, value: 1, first: true } }), 'Install 0f8fad5b marked @xs_a as slop.');
     assert.equal(one({ kind: 'vote', subject: 'xs_a', data: { install: ID, value: 0, first: true } }), 'Install 0f8fad5b said not slop on @xs_a.');
@@ -356,6 +360,12 @@ describe('admin changes and small texts', () => {
     ]);
     assert.deepEqual(changedFields({ install: { banned_at: null } }, { install: { banned_at: null } }), []);
     assert.deepEqual(changedFields(null, null), []);
+    assert.deepEqual(changedFields({ note: 'pay\u202e.exe' }, { note: 'ok' }), [{ field: 'Note', before: 'pay.exe', after: 'ok' }]);
+    assert.equal(showValue('keep\nthis\tand\u0000drop'), 'keep\nthis\tanddrop');
+    assert.equal(str({ message: 'a\u202eb\nc' }, 'message'), 'ab\nc');
+    assert.equal(strOrNull({ message: '\u202e' }, 'message'), null);
+    assert.equal(rawState({ name: 'a\u202eb' }, null).includes('\u202e'), false);
+    assert.match(rawState({ name: 'a\u202eb' }, null), /ab/);
   });
 
   test('marks, timing and rules', () => {

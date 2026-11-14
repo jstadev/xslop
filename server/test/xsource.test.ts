@@ -158,6 +158,11 @@ describe('xsource: guards', () => {
     });
     // A handle in another case is the same account.
     expect(await source(() => json({ user: { ...FX_PROFILE.user, screen_name: 'xDEVELOPERS' } })).src.profile('xdevelopers')).toMatchObject({ xId: AUTHOR_ID });
+    const trav = 'https://pbs.twimg.com/profile_images/1/%2e%2e%2f%2e%2e%2fa.jpg';
+    const disguised = source(() => json({ user: { ...FX_PROFILE.user, name: 'A\u061c\u200bB\u2060\ufeff', avatar_url: trav } }));
+    expect(await disguised.src.profile('xdevelopers')).toMatchObject({ name: 'AB', avatarUrl: null });
+    expect(disguised.calls.map((c) => c.url)).toEqual([`${FX}xdevelopers`]);
+    expect(await source(() => json({ user: { ...FX_PROFILE.user, name: '\u061c\u200b\u200c\u2060\ufeff' } })).src.profile('xdevelopers')).toMatchObject({ name: null });
     expect(await source(() => new Response('not json', { status: 200 })).src.profile('xdevelopers')).toBe('failed');
   });
 
@@ -217,6 +222,10 @@ describe('xsource: guards', () => {
       'https://pbs.twimg.com/profile_images/1/a_normal.jpg?x=1',
       'https://pbs.twimg.com/profile_images/1/a.gif',
       'https://pbs.twimg.com/profile_images/a.jpg',
+      'https://pbs.twimg.com/profile_images/1/%2e%2e%2f%2e%2e%2fa.jpg',
+      'https://pbs.twimg.com/profile_images/1/..%2f..%2fa.jpg',
+      'https://pbs.twimg.com/profile_images/1/a..b.jpg',
+      'https://pbs.twimg.com/profile_images/1/a%2e.jpg',
       'not a url',
       42,
       null,

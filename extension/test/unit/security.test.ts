@@ -58,9 +58,12 @@ describe('a hostile remote config stays data', () => {
     expect(hits).toEqual([]);
   });
 
-  it('known limit: a selector can move the click to an account that the same tweet names, never further', () => {
+  it('known limit: a selector can move the click to an account that the same tweet names, only when that tweet has no avatar', () => {
     const a = reply();
     a.querySelector('[data-testid="tweetText"]')!.innerHTML = 'hello <a href="/victim">@victim</a>';
+    // The outer avatar still names the author, so the selector cannot move the click.
+    expect(parseTweet(a, withSelectors({ userName: '[data-testid="tweetText"]' }))).toBeNull();
+    a.querySelector('[data-testid="Tweet-User-Avatar"]')?.remove();
     expect(parseTweet(a, withSelectors({ userName: '[data-testid="tweetText"]' }))?.handle).toBe('victim');
     expect(parseTweet(a, sel)?.handle).toBe('slopbot');
   });

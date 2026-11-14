@@ -56,13 +56,17 @@ let obsTimer: ReturnType<typeof setTimeout> | null = null;
 
 /** False after an update or removal of the extension: this old script can reach nothing any more. */
 const alive = (): boolean => ext.runtime?.id !== undefined;
-/** Firefox can stop its event page as a message arrives, so one resend after a short wait. The background drops a repeat. */
+/** One id for this script. A resend of a vote or an unvote carries the same `n` and `s`. */
+const ACT_S = crypto.randomUUID();
+let actN = 0;
+/** Firefox can stop its event page as a message arrives, so one resend after a short wait. The same stamp goes again. */
 const RESEND_MS = 300;
 function send(msg: ContentMsg): Promise<unknown> {
   if (!alive()) return Promise.resolve(null);
-  return ext.runtime.sendMessage(msg).catch(async () => {
+  const stamped = msg.t === 'vote' || msg.t === 'unvote' ? { ...msg, n: ++actN, s: ACT_S } : msg;
+  return ext.runtime.sendMessage(stamped).catch(async () => {
     await new Promise((done) => setTimeout(done, RESEND_MS));
-    return alive() ? ext.runtime.sendMessage(msg).catch(() => null) : null;
+    return alive() ? ext.runtime.sendMessage(stamped).catch(() => null) : null;
   });
 }
 

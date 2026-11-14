@@ -4,7 +4,7 @@
 import { formatCount, formatPercent } from '../lib/format.ts';
 import { gateTerm, type TermKey } from './glossary.ts';
 import type { AccountFacts, Activity, Gate, Rules, StandingInfo, Want } from './model.ts';
-import { isRow, num, obj, str, type Row } from './rows.ts';
+import { isRow, num, obj, str, stripControls, type Row } from './rows.ts';
 
 /** A piece of a sentence: text, a glossary term, or a link to an account, an install or a list version. */
 export type Seg = string | { t: 'term'; term: TermKey; text: string } | { t: 'handle'; handle: string } | { t: 'install'; id: string } | { t: 'version'; version: number };
@@ -497,7 +497,7 @@ function flatten(value: unknown, prefix: string, out: Map<string, unknown>): voi
 
 /** "account.clearPenalty" → "Account clear penalty". */
 export function humanize(path: string): string {
-  const words = path.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/[._-]/g, ' ').toLowerCase();
+  const words = stripControls(path).replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/[._-]/g, ' ').toLowerCase();
   return `${words.charAt(0).toUpperCase()}${words.slice(1)}`;
 }
 
@@ -506,7 +506,10 @@ export function showValue(v: unknown): string {
   if (typeof v === 'boolean') return v ? 'yes' : 'no';
   if (typeof v === 'number') return formatCount(v);
   if (Array.isArray(v)) return plural(v.length, 'item');
-  if (typeof v === 'string') return v.length > 120 ? `${v.slice(0, 120)}…` : v;
+  if (typeof v === 'string') {
+    const clean = stripControls(v);
+    return clean.length > 120 ? `${clean.slice(0, 120)}…` : clean;
+  }
   return 'object';
 }
 

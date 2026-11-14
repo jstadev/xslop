@@ -411,7 +411,7 @@ describe('other surfaces', () => {
     expect(isHidden('205')).toBe(false);
     expect(articleOf('205').querySelector('.xslop-host')).toBeNull();
     expect(sentOf('unvote').at(-1)).toMatchObject({ t: 'unvote', handle });
-    expect(toastText()).toBe('This is your own account. xslop did not mark it.');
+    expect(toastText()).toBe('You cannot mark your own account.');
   });
 });
 
@@ -477,7 +477,7 @@ describe('instant mute rules', () => {
     h.instant.mute('alpha');
     await flushNow();
     expect(muted(h)).toEqual([{ t: 'muted', handle: 'alpha', id: null, status, code: null, via: 'rest', op: 'create' }]);
-    expect(h.toasts.at(-1)).toBe('Hidden here. X limits mutes right now, so instant mutes stop for 15 minutes.');
+    expect(h.toasts.at(-1)).toBe('Hidden here. X limits mutes. Instant mute stops for 15 minutes.');
     h.instant.mute('beta');
     await flushNow();
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -499,11 +499,11 @@ describe('instant mute rules', () => {
     document.cookie = 'ct0=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/';
     h.instant.mute('beta');
     await flushNow();
-    expect(h.toasts.at(-1)).toBe('Hidden here. Log in to X to mute this account there.');
+    expect(h.toasts.at(-1)).toBe('Hidden here. Log in to X to mute it there.');
     document.cookie = 'ct0=%E0%A4%A; path=/';
     h.instant.mute('gamma');
     await flushNow();
-    expect(h.toasts.at(-1)).toBe('Hidden here. Log in to X to mute this account there.');
+    expect(h.toasts.at(-1)).toBe('Hidden here. Log in to X to mute it there.');
   });
 
   it('does not try the menu when X says the account is missing or suspended', async () => {

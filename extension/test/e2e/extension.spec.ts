@@ -194,13 +194,22 @@ test('popup toggles strictness, display and shows your list', async () => {
   await popup.setViewportSize({ width: 360, height: 700 });
   await popup.goto(`chrome-extension://${extId}/popup.html`);
   await expect(popup.locator('#headline')).toHaveText('Hiding');
-  // SPEC 13.8: the popup asks /api/v1/me through the background; a new install has no standing yet.
-  if (api) await expect(popup.locator('#standing')).toHaveText(/^Your marks hide for you now\. They count for the shared list after a check/);
+  // SPEC 13.8: the popup asks /api/v1/me through the background; a new install has no standing yet, so no tag shows.
+  if (api) await expect.poll(async () => (await bg<{ standing: boolean | null }>('status')).standing).toBe(false);
+  await expect(popup.locator('#standing')).toBeHidden();
   await expect(popup.locator('#stat-mine')).toHaveText('1');
   if (api) await expect(popup.locator('#stat-list')).toHaveText('5');
   expect(await popup.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(360);
   await expect(popup.locator('#votes li')).toHaveCount(2);
   await expect(popup.locator('#votes')).toContainText('@slopbot');
+  // Chrome caps a popup at 600 px: with 4 marks and no notice, the whole popup fits without a scroll bar.
+  const height = await popup.evaluate(() => {
+    const row = document.querySelector('#votes li')!.getBoundingClientRect().height;
+    return document.body.getBoundingClientRect().height + 2 * row;
+  });
+  expect(height).toBeLessThanOrEqual(600);
+  // The search field shows from 7 marks.
+  await expect(popup.locator('#search')).toBeHidden();
 
   if (api) {
     await radio(popup, 'strictness', 'strict').click();
@@ -218,7 +227,6 @@ test('popup toggles strictness, display and shows your list', async () => {
   expect((await bg<{ strictness: string; display: string }>('settings'))).toMatchObject({ strictness: 'balanced', display: 'collapse' });
 
   // Remove from your list, then undo.
-  await popup.locator('#search').fill('slop');
   await popup.locator('#votes li', { hasText: '@slopbot' }).getByRole('button', { name: 'Undo your mark on @slopbot' }).click();
   await expect(tweet(page, '103')).toBeVisible();
   await popup.locator('#toast-undo').click();
@@ -259,7 +267,7 @@ test('mute sync calls the X mute endpoint with your session headers, by the X id
   xcalls.length = 0;
   const popup = await ctx.newPage();
   await popup.goto(`chrome-extension://${extId}/popup.html`);
-  await popup.locator('label.switch', { hasText: 'Mute the shared list too' }).click();
+  await popup.locator('label.switch', { hasText: 'Mute the shared list' }).click();
   // Targets: your slop vote first, then global tier 2 by score; globalslop is on your allow list, flaggedone is tier 1.
   await expect.poll(() => xcalls.filter((c) => c.op === 'create').length, { timeout: 30_000 }).toBe(4);
   const creates = xcalls.filter((c) => c.op === 'create');

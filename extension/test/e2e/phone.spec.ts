@@ -137,17 +137,17 @@ test('the popup fits every phone screen: no sideways scroll, 44 px controls, no 
   await popup.goto(`chrome-extension://${extension.extId}/popup.html`);
   await expect(popup.locator('#votes li')).toHaveCount(1);
   await expect(popup.locator('#undo-mutes')).toBeVisible();
-  expect(await asTouchDevice(popup)).toBe(2);
+  expect(await asTouchDevice(popup)).toBe(1);
   // Three numbers of six digits: the widest that the glance row can show.
   await popup.evaluate(() => {
     for (const id of ['stat-hidden', 'stat-list', 'stat-mine']) document.getElementById(id)!.textContent = '200,000';
   });
   for (const screen of SCREENS) {
     await popup.setViewportSize(screen);
-    // search, row link, row Undo, 5 segments, 3 switches, Undo all, 2 footer links
-    expect(await audit(popup), `${screen.width}x${screen.height}`).toEqual(clean(14));
+    // row link, row Undo, 5 segments, 3 switches, Undo all, 2 footer links (the search field shows from 7 marks)
+    expect(await audit(popup), `${screen.width}x${screen.height}`).toEqual(clean(13));
   }
-  expect(await auditNotched(popup), 'with a notch').toEqual(clean(14));
+  expect(await auditNotched(popup), 'with a notch').toEqual(clean(13));
   await popup.setViewportSize({ width: 320, height: 760 });
   await tap(popup, popup.getByRole('button', { name: 'Undo your mark on @slopbot' }));
   await expect(popup.locator('#toast-undo')).toBeVisible();
@@ -162,7 +162,7 @@ test('the onboarding fits every phone screen on each of its three steps, and the
   await page.goto(`chrome-extension://${extension.extId}/onboarding.html`);
   // Controls per step: switch + Next; 2 switches + Back + Next; the appeal link + Back + Open x.com.
   const steps = [2, 4, 3];
-  expect(await asTouchDevice(page)).toBe(2);
+  expect(await asTouchDevice(page)).toBe(1);
   for (const [i, controls] of steps.entries()) {
     await expect(page.locator(`#step-${i + 1}`)).toBeVisible();
     for (const screen of SCREENS) {

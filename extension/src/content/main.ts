@@ -325,7 +325,7 @@ function yours(handle: string): void {
   votes.delete(handle);
   void send({ t: 'unvote', handle });
   refresh();
-  showToast('This is your own account. xslop did not mark it.');
+  showToast('You cannot mark your own account.');
 }
 
 function notSlop(e: Entry): void {

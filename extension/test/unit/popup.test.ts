@@ -50,7 +50,7 @@ describe('state at a glance', () => {
       x.local.set('mute', { ...EMPTY_MUTE, waiting: 'login' });
     });
     expect(text('headline')).toBe('X login missing');
-    expect(text('notices')).toContain('not logged in to x.com');
+    expect(text('notices')).toBe('Log in to x.com to mute on X. Hiding still works.');
   });
 
   it('names a running pause and when it ends', async () => {
@@ -59,7 +59,7 @@ describe('state at a glance', () => {
       x.local.set('mute', { ...EMPTY_MUTE, pausedUntil: Date.now() + 3_600_000, reason: 'X answered 429 (too many requests).' });
     });
     expect(text('mute-state')).toContain('X answered 429');
-    expect(text('mute-state')).toContain('It starts again at');
+    expect(text('mute-state')).toMatch(/^X answered 429 \(too many requests\)\. Mute sync resumes at \d/);
   });
 
   it('R2-6 says that an unmute runs now when the mutes of today are used up, and that a mute waits', async () => {
@@ -86,7 +86,7 @@ describe('state at a glance', () => {
 
   it('asks for a tab when work waits for one', async () => {
     await open((x) => x.local.set('mute', { ...EMPTY_MUTE, waiting: 'tab' }));
-    expect(text('mute-state')).toBe('Open x.com in a tab so that xslop can finish the change on X.');
+    expect(text('mute-state')).toBe('Open an x.com tab to finish the changes on X.');
   });
 
   it('says why mute sync stopped and counts the mutes that xslop could not undo', async () => {
@@ -94,50 +94,37 @@ describe('state at a glance', () => {
       x.local.set('votes', [vote('a', 1)]);
       x.local.set('mute', {
         ...EMPTY_MUTE, lost: 2, muted: [['a', { at: 1, id: '7' }]],
-        reason: 'You mute too many accounts on X for xslop to check them all, so mute sync is off.',
+        reason: 'You mute too many accounts on X. Mute sync is off.',
       });
     });
     expect(text('mute-state')).toBe(
-      'You mute too many accounts on X for xslop to check them all, so mute sync is off. 1 account muted by xslop. ' +
-      'xslop could not undo 2 mutes because it has no X user id for them. Check your muted accounts in the X settings.',
+      'You mute too many accounts on X. Mute sync is off. 1 account muted by xslop. xslop could not undo 2 mutes. Check your muted accounts on X.',
     );
   });
 });
 
 describe('your standing (SPEC 13.8)', () => {
   const status = (o: object) => ({ banned: false, updateNeeded: false, installError: null, listAt: 0, standing: null, meAt: 0, ...o });
-  const line = (): HTMLElement => document.getElementById('standing')!;
+  const tag = (): HTMLElement => document.getElementById('standing')!;
 
-  it('says that your marks count once the server says that you have standing', async () => {
+  it('shows a tag once the server says that your marks count for the shared list', async () => {
     await open((x) => x.local.set('status', status({ standing: true })));
-    expect(line().hidden).toBe(false);
-    expect(line().textContent).toBe('Your marks count for the shared list.');
+    expect(tag().hidden).toBe(false);
+    expect(tag().textContent).toBe('Counts for the shared list');
   });
 
-  it('says what your marks do without standing, and states no number', async () => {
-    await open((x) => x.local.set('status', status({ standing: false })));
-    expect(line().textContent).toBe(
-      'Your marks hide and mute for you now. They count for the shared list after a check, or once your install is old enough and has enough approved marks.',
-    );
-    expect(line().textContent).not.toMatch(/[0-9]/);
-    await open((x) => {
-      x.local.set('status', status({ standing: false }));
-      x.local.set('settings', { ...DEFAULT_SETTINGS, muteOnMark: false });
-    });
-    expect(line().textContent).toMatch(/^Your marks hide for you now\. /);
-  });
-
-  it('says nothing until the server answered, on an older server, and for a banned install', async () => {
-    for (const o of [{}, { standing: null }, { standing: true, banned: true }]) {
+  it('says nothing without standing, before the server answered, on an older server, and for a banned install', async () => {
+    for (const o of [{ standing: false }, {}, { standing: null }, { standing: true, banned: true }]) {
       await open((x) => x.local.set('status', status(o)));
-      expect([o, line().hidden, line().textContent]).toEqual([o, true, '']);
+      expect([o, tag().hidden]).toEqual([o, true]);
     }
+    expect(document.body.textContent).not.toMatch(/old enough|approved marks/);
   });
 
   it('follows a change of standing while the popup is open', async () => {
     await open((x) => x.local.set('status', status({ standing: false })));
     await f.api.storage.local.set({ status: status({ standing: true }) });
-    await vi.waitFor(() => expect(line().textContent).toBe('Your marks count for the shared list.'));
+    await vi.waitFor(() => expect(tag().hidden).toBe(false));
   });
 });
 
@@ -158,7 +145,7 @@ describe('your accounts', () => {
   it('lists your accounts newest first, with the state of each mute', async () => {
     await open(setup);
     expect(rows().map((r) => r.querySelector('a')!.textContent)).toEqual(['@newest', '@older', '@friend']);
-    expect(rows().map((r) => r.querySelector('.tag')!.textContent)).toEqual(['Muted on X', 'Mute waits', 'Not slop']);
+    expect(rows().map((r) => r.querySelector('.tag')!.textContent)).toEqual(['Muted', 'Mute waits', 'Not slop']);
   });
 
   it('one tap undoes a mark, offers to take the undo back, and moves focus', async () => {
@@ -187,17 +174,52 @@ describe('your accounts', () => {
     button.focus();
     f.local.set('mute', { ...EMPTY_MUTE, muted: [['older', { at: 3, id: '8' }]] });
     await f.api.storage.local.set({ mute: { ...EMPTY_MUTE, muted: [['older', { at: 3, id: '8' }]] } });
-    await vi.waitFor(() => expect(rows()[0]!.querySelector('.tag')!.textContent).toBe('Muted on X'));
+    await vi.waitFor(() => expect(rows()[0]!.querySelector('.tag')!.textContent).toBe('Muted'));
     expect(document.activeElement).toBe(button);
   });
 
+  it('shows the search field only from 7 marks, or while it holds text', async () => {
+    const field = () => document.getElementById('search') as HTMLInputElement;
+    await open(setup);
+    expect(field().hidden).toBe(true);
+    await open((x) => x.local.set('votes', Array.from({ length: 7 }, (_, i) => vote(`acct${i}`, i))));
+    const search = field();
+    expect(search.hidden).toBe(false);
+    search.value = 'acct1';
+    search.dispatchEvent(new Event('input'));
+    await f.api.storage.local.set({ votes: [vote('acct1', 1)] });
+    await vi.waitFor(() => expect(rows().length).toBe(1));
+    expect(search.hidden).toBe(false);
+  });
+
+  it('a vote that changes while the popup is open repaints its row, and Undo puts back the vote as it is now', async () => {
+    await open(setup);
+    const button = rows()[0]!.querySelector('button')!;
+    await f.api.storage.local.set({ votes: [vote('newest', 3, 0), vote('older', 2), vote('friend', 1, 0)] });
+    await vi.waitFor(() => expect(rows()[0]!.querySelector('.tag')!.textContent).toBe('Not slop'));
+    expect(rows()[0]!.querySelector('.tag')!.className).toBe('tag ok');
+    expect(rows()[0]!.querySelector('button')).toBe(button);
+    button.click();
+    document.getElementById('toast-undo')!.click();
+    await vi.waitFor(() => expect(f.sent.some((m) => (m as { t: string }).t === 'restore')).toBe(true));
+    expect(f.sent.find((m) => (m as { t: string }).t === 'restore')).toEqual({ t: 'restore', vote: vote('newest', 3, 0) });
+  });
+
+  it('gives the focus back to the list heading when the toast closes and no search field shows', async () => {
+    await open(setup);
+    rows()[0]!.querySelector('button')!.click();
+    expect(document.activeElement?.id).toBe('toast-undo');
+    document.getElementById('toast-undo')!.click();
+    expect(document.activeElement?.id).toBe('h-list');
+  });
+
   it('says so when nothing matches, and when the list is empty', async () => {
-    expect(text('empty')).toContain('Your list is empty');
+    expect(text('empty')).toBe('No marks yet. Click the xslop button on a post.');
     await open(setup);
     const search = document.getElementById('search') as HTMLInputElement;
     search.value = 'nobody';
     search.dispatchEvent(new Event('input'));
-    expect(text('empty')).toBe('No account on your list matches.');
+    expect(text('empty')).toBe('No match.');
   });
 });
 
@@ -221,9 +243,13 @@ describe('settings', () => {
     expect((document.getElementById('mute-mark') as HTMLInputElement).checked).toBe(false);
   });
 
-  it('explains each hide level in plain words', async () => {
-    expect(text('strict-hint')).toBe('Hides confirmed slop accounts and the accounts that you marked.');
-    expect(text('display-hint')).toBe('A hidden post stays as one line that you can open.');
+  it('explains each hide level in a few words, and names the daily mute limit of the config', async () => {
+    expect(text('strict-hint')).toBe('Your marks and confirmed slop.');
+    const strict = document.querySelector<HTMLInputElement>('input[name="strictness"][value="strict"]')!;
+    await f.api.storage.local.set({ settings: { ...DEFAULT_SETTINGS, strictness: 'strict' } });
+    await vi.waitFor(() => expect(text('strict-hint')).toBe('Also accounts the crowd flagged.'));
+    expect(strict.checked).toBe(true);
+    expect(text('mute-max')).toBe('40');
   });
 
   it('asks once for host access when the browser left it off, with a real button', async () => {

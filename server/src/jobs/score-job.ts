@@ -2,6 +2,7 @@
 import type { Db, Queryable } from '../db.js';
 import type { AccountScore, ScoringInput, ScoringOutput } from '../scoring/index.js';
 import { NETWORK_DAILY_VOTES, PROTECTED_MIN_FOLLOWERS } from '../scoring/index.js';
+import { errorText, recordRun, writeEvents, type HistoryEvent } from '../history.js';
 import { HANDLE_RE } from '../lib/http.js';
 import { publishList } from '../list.js';
 
@@ -11,8 +12,8 @@ export type ComputeScores = (input: ScoringInput) => ScoringOutput;
 export const SCORE_LOCK = 0x7a510001;
 
 const DAY_MS = 86_400_000;
-/** SPEC 4 and 13.7: age in days past which a row can go. */
-export const RETENTION = { sightings: 30, votes: 180, accounts: 30, installs: 90, evidence: 30, clearedVotes: 400, adminLog: 400 } as const;
+/** SPEC 4, 13.7 and 14.1: age in days past which a row can go. */
+export const RETENTION = { sightings: 30, votes: 180, accounts: 30, installs: 90, evidence: 30, clearedVotes: 400, adminLog: 400, events: 400, jobRuns: 30 } as const;
 const SNAPSHOTS_KEPT = 60;
 const CHUNK = 1000;
 /** The tier of each status. A row that breaks it fails the run before anything is written, so a pending account never reaches the list. */
@@ -177,14 +178,37 @@ const CHANGED = `a.handle = u.h
     and (a.status, a.score, a.tier, a.parts, a.listed_at is null, a.confirmed_at is null)
       is distinct from (u.s, u.sc, u.t, u.p, u.t = 0, not u.c)`;
 
+interface StoredState {
+  handle: string;
+  status: string;
+  tier: number;
+  gate: string | null;
+  want: string | null;
+}
+
+/** A status event (SPEC 14.1) when status, tier, gate or want differ from the stored row. A change of the score alone writes none. */
+function statusEvent(o: StoredState, a: AccountScore): HistoryEvent[] {
+  const p = a.parts;
+  if (o.status === a.status && o.tier === a.tier && o.gate === p.gate && o.want === p.want) return [];
+  return [{
+    subject: a.handle,
+    data: {
+      from: { status: o.status, tier: o.tier, gate: o.gate, want: o.want },
+      to: { status: a.status, tier: a.tier, gate: p.gate, want: p.want, reason: p.reason, score: Math.round(a.score * 100), networks: p.networks, anchors: p.anchors, notSlop: p.notSlop, dissent: p.dissent, evidence: p.evidence },
+    },
+  }];
+}
+
 /**
  * listed_at: set to `now` when an account reaches tier 1 or 2 without one, cleared at tier 0. confirmed_at: set to `now` when
  * votes confirm an account, kept while they do, null otherwise. `override` and `override_at` are the values that the run loaded.
  * A row where they moved since then has an admin answer newer than this result: it stays as it is until the next run.
  * The rows are locked in handle order before the update, the order of the X facts commit, so the two cannot deadlock.
+ * The lock reads the stored state of each row that changes, for its status event.
  */
 async function writeAccounts(q: Queryable, accounts: AccountScore[], loaded: ReadonlyMap<string, LoadedAccount>, now: Date): Promise<number> {
   let changed = 0;
+  const events: HistoryEvent[] = [];
   const sorted = [...accounts].sort((x, y) => (x.handle < y.handle ? -1 : x.handle > y.handle ? 1 : 0));
   for (let i = 0; i < sorted.length; i += CHUNK) {
     const part = sorted.slice(i, i + CHUNK);
@@ -198,7 +222,11 @@ async function writeAccounts(q: Queryable, accounts: AccountScore[], loaded: Rea
       part.map((a) => loaded.get(a.handle)!.overrideAt),
       part.map(votesConfirmed),
     ];
-    await q.query(`select a.handle from accounts a, ${RESULTS} where ${CHANGED} order by a.handle collate "C" for update of a`, params);
+    const { rows: stored } = await q.query<StoredState>(
+      `select a.handle, a.status, a.tier, a.parts->>'gate' as gate, a.parts->>'want' as want
+       from accounts a, ${RESULTS} where ${CHANGED} order by a.handle collate "C" for update of a`,
+      params,
+    );
     const r = await q.query(
       `update accounts a set status = u.s, score = u.sc, tier = u.t, parts = u.p,
          listed_at = case when u.t >= 1 then coalesce(a.listed_at, $9::timestamptz) end,
@@ -208,22 +236,39 @@ async function writeAccounts(q: Queryable, accounts: AccountScore[], loaded: Rea
       [...params, now],
     );
     changed += r.rowCount;
+    const byHandle = new Map(part.map((a) => [a.handle, a]));
+    for (const o of stored) events.push(...statusEvent(o, byHandle.get(o.handle)!));
   }
+  await writeEvents(q, 'score', 'status', events);
   return changed;
 }
 
-/** Stores reputation, standing and good marks of each loaded install. A ban ends standing at once, also for an install that is not loaded. */
+/** The data of a standing event (SPEC 14.1), from the row aliased `c` with the columns that the writers return. */
+const STANDING_DATA = "jsonb_build_object('standing', c.standing, 'reputation', c.reputation, 'goodMarks', c.good_marks, 'banned', c.banned)";
+
+/**
+ * Stores reputation, standing and good marks of each loaded install. A ban ends standing at once, also for an install that is
+ * not loaded. Each flip of the stored standing writes a standing event in the same statement (every part of a statement reads
+ * the rows as they were before it).
+ */
 async function writeInstalls(q: Queryable, installs: ScoringOutput['installs']): Promise<void> {
   for (let i = 0; i < installs.length; i += CHUNK) {
     const part = installs.slice(i, i + CHUNK);
     await q.query(
-      `update installs i set reputation = u.r, standing = u.s, good_marks = u.g
-       from unnest($1::uuid[], $2::real[], $3::boolean[], $4::int[]) as u(id, r, s, g)
-       where i.id = u.id and (i.reputation, i.standing, i.good_marks) is distinct from (u.r, u.s, u.g)`,
+      `with u as (select * from unnest($1::uuid[], $2::real[], $3::boolean[], $4::int[]) as u(id, r, s, g)),
+       flipped as (select i.id from installs i join u on u.id = i.id where i.standing <> u.s),
+       c as (update installs i set reputation = u.r, standing = u.s, good_marks = u.g from u
+             where i.id = u.id and (i.reputation, i.standing, i.good_marks) is distinct from (u.r, u.s, u.g)
+             returning i.id, i.standing, i.reputation, i.good_marks, i.banned_at is not null as banned)
+       insert into events (source, kind, subject, data)
+       select 'score', 'standing', c.id::text, ${STANDING_DATA} from c join flipped f on f.id = c.id`,
       [part.map((x) => x.id), part.map((x) => x.reputation), part.map((x) => x.standing), part.map((x) => x.goodMarks)],
     );
   }
-  await q.query('update installs set standing = false where standing and banned_at is not null');
+  await q.query(
+    `with c as (update installs set standing = false where standing and banned_at is not null returning id, standing, reputation, good_marks, true as banned)
+     insert into events (source, kind, subject, data) select 'score', 'standing', c.id::text, ${STANDING_DATA} from c`,
+  );
 }
 
 /** SPEC 4 and 13.7. Each rule keeps what a later run, an admin or an appeal can still use. */
@@ -244,6 +289,8 @@ async function retention(q: Queryable, now: Date): Promise<void> {
   );
   await q.query('delete from cleared_votes where cleared_at < $1', [ago(RETENTION.clearedVotes)]);
   await q.query('delete from admin_log where at < $1', [ago(RETENTION.adminLog)]);
+  await q.query('delete from events where at < $1', [ago(RETENTION.events)]);
+  await q.query('delete from job_runs where started_at < $1', [ago(RETENTION.jobRuns)]);
   // A signed request moves last_seen_at, so an install that comes back during this statement is not deleted.
   await q.query('delete from installs i where coalesce(i.last_seen_at, i.created_at) < $1 and not exists (select 1 from votes v where v.install_id = i.id)', [ago(RETENTION.installs)]);
   // An account row with nothing on it: no state, no vote, no appeal, no evidence, unchanged for 30 days. Its profile goes with it.
@@ -262,8 +309,9 @@ async function retention(q: Queryable, now: Date): Promise<void> {
 }
 
 /**
- * One scoring run (SPEC 6 and 13): lock, load, computeScores, write accounts, installs, snapshot and delta,
- * heartbeat; then retention in its own transaction. A second concurrent run skips.
+ * One scoring run (SPEC 6, 13 and 14.1): lock, load, computeScores, write accounts, installs, their events, snapshot and
+ * delta, heartbeat; then retention in its own transaction, then one job_runs row (also for a failed run). A second
+ * concurrent run skips and writes nothing.
  */
 export async function runScoreJob(db: Db, compute: ComputeScores, clock: () => Date = () => new Date(), budgetMs = TIME_BUDGET_MS): Promise<ScoreJobResult> {
   const started = Date.now();
@@ -281,7 +329,7 @@ export async function runScoreJob(db: Db, compute: ComputeScores, clock: () => D
       const loaded = new Map(input.accounts.map((a) => [a.handle, a]));
       // Only loaded rows are written: the engine never creates an account row.
       const accounts = out.accounts.filter((a) => loaded.has(a.handle));
-      const result = await s.tx(async (q) => {
+      const { result, detail } = await s.tx(async (q) => {
         const accountsChanged = await writeAccounts(q, accounts, loaded, now);
         await writeInstalls(q, out.installs);
         const snap = await publishList(q, now);
@@ -305,18 +353,21 @@ export async function runScoreJob(db: Db, compute: ComputeScores, clock: () => D
            on conflict (name) do update set last_run_at = excluded.last_run_at, last_ok_at = excluded.last_ok_at, detail = excluded.detail`,
           [now, JSON.stringify(detail)],
         );
-        return r;
+        return { result: r, detail };
       });
       await s.tx((q) => retention(q, now));
+      await recordRun(s, 'score', new Date(started), true, detail);
       return result;
     } catch (err) {
+      const failure = { error: errorText(err) };
       await s
         .query(
           `insert into jobs (name, last_run_at, detail) values ('score', now(), $1::jsonb)
            on conflict (name) do update set last_run_at = excluded.last_run_at, detail = excluded.detail`,
-          [JSON.stringify({ error: err instanceof Error ? err.message : String(err) })],
+          [JSON.stringify(failure)],
         )
         .catch(() => undefined);
+      await recordRun(s, 'score', new Date(started), false, failure).catch(() => undefined);
       throw err;
     } finally {
       await s.query('select pg_advisory_unlock($1::int, hashtext(current_schema()))', [SCORE_LOCK]).catch(() => undefined);

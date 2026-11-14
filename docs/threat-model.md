@@ -107,6 +107,7 @@ Everything else waits in the review queue for a person.
 - Admin changes have a limit of 30 a minute per address. At most 2 password checks run at a time (12.13).
 - Every change writes one `admin_log` row with the state before, in the same transaction (13.8). The maintainer sees each change and the state to restore.
 - `ban-voters` refuses an account whose slop voters that are not banned are on more than 10 networks (409 `crowd_too_large`). The console shows that count on the button and turns the button off above 10 (13.12).
+- A stolen session reads no address (14.1, 14.2). No admin answer holds an `ip_hash`, an address, a post text or a cookie. A network shows only as its label: the first 8 hex characters of SHA-256 of the salted `ip_hash`. Without the salt, the label gives no address back. The `events` and `job_runs` tables keep no `ip_hash`. The score job deletes events after 400 days and job runs after 30 days. Each `admin_log` row of a change also keeps the answer in `after`, so the maintainer sees the result of each change of a thief.
 
 **Risks that stay, with their price.**
 - Inside a live session, the thief can do every admin action, 30 a minute. A trust gives an install standing, so it also acts after the session ends. Price: the browser of the admin, or the password and a fresh code. Recovery: read `GET /api/admin/log`, restore each state from `before`, remove every trust that the log shows, end every session, and change the password hash and the TOTP secret.

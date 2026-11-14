@@ -1,5 +1,6 @@
 import { createPgDb, type Db, type Queryable } from '../db.js';
 import { requireDatabaseUrl } from '../env.js';
+import { errorText, recordRun, writeEvents, type HistoryEvent } from '../history.js';
 import { postTime } from '../lib/http.js';
 import { isMain } from '../lib/main.js';
 import { createXSource, type Avatar, type Miss, type XPost, type XProfile, type XSourceDeps } from '../lib/xsource.js';
@@ -268,16 +269,44 @@ async function storeProfile(q: Queryable, handle: string, outcome: ProfileOutcom
   }
 }
 
+interface IdentityRow {
+  handle: string;
+  identity: string;
+  x_user_id: string | null;
+  moved_to?: string | null;
+}
+
+/**
+ * The identity events of a commit (SPEC 14.1): one for each row whose identity changed, and one on the new handle of each
+ * rename, with the row that it took the state from. A row that a rename emptied keeps its old X id in the event.
+ */
+async function identityEvents(q: Queryable, before: readonly IdentityRow[], renames: readonly { from: string; to: string }[]): Promise<HistoryEvent[]> {
+  const was = new Map(before.map((r) => [r.handle, r]));
+  const { rows } = await q.query<IdentityRow>('select handle, identity, x_user_id, moved_to from accounts where handle = any($1::text[]) order by handle collate "C"', [[...was.keys()]]);
+  return rows.flatMap((r): HistoryEvent[] => {
+    const b = was.get(r.handle)!;
+    const tookFrom = renames.find((m) => m.to === r.handle)?.from;
+    if (tookFrom !== undefined) return [{ subject: r.handle, data: { from: b.identity, to: r.identity, xUserId: r.x_user_id, tookFrom } }];
+    if (b.identity === r.identity) return [];
+    return [{ subject: r.handle, data: { from: b.identity, to: r.identity, xUserId: r.x_user_id ?? b.x_user_id, movedTo: r.moved_to ?? null } }];
+  });
+}
+
 const defaults: ProfileJobDeps = {
   fetch: globalThis.fetch,
   sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
   now: Date.now,
 };
 
-/** One run: lock, read the work order, ask the sources at the pace limit, then write everything in one commit. A second concurrent run skips. */
+/**
+ * One run: lock, read the work order, ask the sources at the pace limit, then write everything in one commit with its identity
+ * events. A run that did work or failed writes one job_runs row. A second concurrent run skips and writes nothing.
+ */
 export async function runProfilesJob(db: Db, overrides: Partial<ProfileJobDeps> = {}): Promise<ProfileJobResult> {
   const deps = { ...defaults, ...overrides };
   const started = deps.now();
+  // Wall time for job_runs: deps.now is the clock of the pace and the deadline.
+  const startedAt = new Date();
   const result: ProfileJobResult = { skipped: false, picked: 0, requests: 0, ok: 0, avatars: 0, missing: 0, failed: 0, evidence: 0, verified: 0, deleted: 0, renamed: 0, stopped: null, ms: 0 };
   return db.session(async (s) => {
     const lock = await s.query<{ ok: boolean }>('select pg_try_advisory_lock($1::int, hashtext(current_schema())) as ok', [PROFILES_LOCK]);
@@ -434,8 +463,8 @@ export async function runProfilesJob(db: Db, overrides: Partial<ProfileJobDeps> 
         await q.query('insert into accounts (handle) select unnest($1::text[]) on conflict (handle) do nothing', [moves.map((m) => m.to)]);
         // Row locks in one fixed order (handle order), taken before any write, so two writers cannot deadlock.
         const touched = [...new Set([...stored.map(([h]) => h), ...moves.flatMap((m) => [m.from, m.to])])];
-        const before = await q.query<{ handle: string; x_user_id: string | null }>(
-          'select handle, x_user_id from accounts where handle = any($1::text[]) order by handle collate "C" for update',
+        const before = await q.query<IdentityRow>(
+          'select handle, identity, x_user_id from accounts where handle = any($1::text[]) order by handle collate "C" for update',
           [touched],
         );
         const ids = new Map(before.rows.map((r) => [r.handle, r.x_user_id]));
@@ -472,18 +501,21 @@ export async function runProfilesJob(db: Db, overrides: Partial<ProfileJobDeps> 
 
         // A move runs only while A still holds the id and B has it now (B is new, or its check just found it).
         const after = new Map((await q.query<{ handle: string; x_user_id: string | null }>('select handle, x_user_id from accounts where handle = any($1::text[])', [touched])).rows.map((r) => [r.handle, r.x_user_id]));
-        for (const m of moves) {
-          if (after.get(m.from) !== m.xId || after.get(m.to) !== m.xId) continue;
-          for (const sql of MOVE) await q.query(sql, [m.from, m.to]);
-          result.renamed++;
-        }
+        const renamed = moves.filter((m) => after.get(m.from) === m.xId && after.get(m.to) === m.xId);
+        for (const m of renamed) for (const sql of MOVE) await q.query(sql, [m.from, m.to]);
+        result.renamed = renamed.length;
+        await writeEvents(q, 'facts', 'identity', await identityEvents(q, before.rows, renamed));
         await q.query(
           `insert into jobs (name, last_run_at, last_ok_at, detail) values ('profiles', now(), now(), $1::jsonb)
            on conflict (name) do update set last_run_at = excluded.last_run_at, last_ok_at = excluded.last_ok_at, detail = excluded.detail`,
           [JSON.stringify(result)],
         );
+        if (result.picked > 0) await recordRun(q, 'profiles', startedAt, true, result);
       });
       return result;
+    } catch (err) {
+      await recordRun(s, 'profiles', startedAt, false, { error: errorText(err) }).catch(() => undefined);
+      throw err;
     } finally {
       await s.query('select pg_advisory_unlock($1::int, hashtext(current_schema()))', [PROFILES_LOCK]).catch(() => undefined);
     }

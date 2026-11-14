@@ -353,6 +353,8 @@ describe('headers, the client network and the admin guard', () => {
       ['POST', `/api/admin/installs/${id}/unban`], ['GET', '/api/admin/overview'], ['HEAD', '/api/admin/overview'],
       ['GET', '/api/admin/review'], ['GET', '/api/admin/log'], ['POST', '/api/admin/accounts/abc/ban-voters'],
       ['POST', `/api/admin/installs/${id}/trust`], ['POST', `/api/admin/installs/${id}/untrust`],
+      ['GET', '/api/admin/activity'], ['GET', '/api/admin/accounts/abc'], ['GET', `/api/admin/installs/${id}`], ['GET', '/api/admin/lists'],
+      ['GET', '/api/admin/jobs'], ['HEAD', '/api/admin/activity'],
     ];
     for (const [method, url] of routes) {
       const write = method === 'POST';

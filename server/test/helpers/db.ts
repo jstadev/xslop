@@ -20,7 +20,7 @@ export function pgliteDb(p: PGlite): Db {
 type Backend = 'pglite' | 'postgres';
 export const BACKENDS: Backend[] = process.env.TEST_DATABASE_URL ? ['pglite', 'postgres'] : ['pglite'];
 
-const TABLES = ['jobs', 'used_challenges', 'admin_log', 'admin_sessions', 'appeals', 'list_snapshots', 'sightings', 'votes', 'cleared_votes', 'evidence', 'profiles', 'accounts', 'installs'];
+const TABLES = ['events', 'job_runs', 'jobs', 'used_challenges', 'admin_log', 'admin_sessions', 'appeals', 'list_snapshots', 'sightings', 'votes', 'cleared_votes', 'evidence', 'profiles', 'accounts', 'installs'];
 const TEST_LOCK = 0x7a51ffff;
 
 export interface TestDb {

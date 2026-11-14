@@ -140,6 +140,9 @@ describe.each(BACKENDS)('X facts job (%s)', (backend) => {
     await runScoreJob(tdb.db, computeScores);
     return (await loadLatestEntries(tdb.db))?.entries ?? new Map();
   };
+  const identityEvents = async () =>
+    (await tdb.db.query<{ source: string; subject: string; data: Record<string, unknown> }>("select source, subject, data from events where kind = 'identity' order by id")).rows;
+  const jobRuns = async () => (await tdb.db.query<{ job: string; ok: boolean; detail: Record<string, unknown> }>("select job, ok, detail from job_runs order by id")).rows;
 
   it('checks listed and starter accounts only, stores the identity and the profile, and serves the avatar', async () => {
     await account('listed_slop', { tier: 2 });
@@ -159,12 +162,37 @@ describe.each(BACKENDS)('X facts job (%s)', (backend) => {
     expect(await row('not_listed')).toMatchObject({ identity: 'unknown', identity_at: null });
     expect(await profile('not_listed')).toBeUndefined();
     expect((await tdb.db.query<{ detail: { ok: number } }>("select detail from jobs where name = 'profiles'")).rows[0]!.detail.ok).toBe(2);
+    // SPEC 14.1: one identity event per changed row, in handle order, and one job_runs row with the heartbeat detail.
+    expect(await identityEvents()).toEqual([
+      { source: 'facts', subject: 'listed_slop', data: { from: 'unknown', to: 'ok', xUserId: '111', movedTo: null } },
+      { source: 'facts', subject: 'starter_slop', data: { from: 'unknown', to: 'ok', xUserId: '777', movedTo: null } },
+    ]);
+    const heartbeat = (await tdb.db.query<{ detail: unknown }>("select detail from jobs where name = 'profiles'")).rows[0]!.detail;
+    expect(await jobRuns()).toEqual([{ job: 'profiles', ok: true, detail: heartbeat }]);
 
     const r = await t.app.inject({ url: '/api/v1/avatars/listed_slop' });
     expect([r.statusCode, r.headers['content-type']]).toEqual([200, 'image/jpeg']);
     expect(r.rawPayload.equals(JPEG)).toBe(true);
-    // Checked within 7 days: nothing is due.
+    // Checked within 7 days: nothing is due. A run without work writes no job_runs row and no event.
     expect((await run(w)).picked).toBe(0);
+    expect(await jobRuns()).toHaveLength(1);
+    expect(await identityEvents()).toHaveLength(2);
+  });
+
+  it('writes a failed job_runs row for a run that fails, and none for a run that another run holds back (SPEC 14.1)', async () => {
+    await account('fails_once', { tier: 2 });
+    const w = new World();
+    w.users.set('fails_once', '42');
+    const failing: Db = { ...tdb.db, session: (fn) => tdb.db.session((s) => fn({ ...s, tx: () => Promise.reject(new Error('commit failed')) })) };
+    await expect(runProfilesJob(failing, { fetch: w.fetch, ...fakeTime() })).rejects.toThrow('commit failed');
+    expect(await jobRuns()).toEqual([{ job: 'profiles', ok: false, detail: { error: 'commit failed' } }]);
+    expect(await identityEvents()).toEqual([]);
+    const held: Db = {
+      ...tdb.db,
+      session: (fn) => tdb.db.session((s) => fn({ ...s, query: (text, params) => (text.includes('pg_try_advisory_lock') ? Promise.resolve({ rows: [{ ok: false }], rowCount: 1 } as never) : s.query(text, params)) })),
+    };
+    expect((await runProfilesJob(held, { fetch: w.fetch, ...fakeTime() })).skipped).toBe(true);
+    expect(await jobRuns()).toHaveLength(1);
   });
 
   it('marks an account gone only after 5 runs in a row a day apart, and keeps its data until then', async () => {
@@ -184,6 +212,11 @@ describe.each(BACKENDS)('X facts job (%s)', (backend) => {
       expect((await run(w)).requests).toBe(0);
     }
     expect(w.urls(`${FX}vanished`)).toHaveLength(1 + MISSES_FOR_GONE * TRIES_PER_PROFILE);
+    // One event when it was first found, one when it became gone; the misses before change no identity.
+    expect((await identityEvents()).filter((e) => e.subject === 'vanished').map((e) => e.data)).toEqual([
+      { from: 'unknown', to: 'ok', xUserId: '501', movedTo: null },
+      { from: 'ok', to: 'gone', xUserId: '501', movedTo: null },
+    ]);
     // The id stays, so the row of a new handle of the account can still claim the state.
     expect((await row('vanished'))!.x_user_id).toBe('501');
   });
@@ -270,6 +303,11 @@ describe.each(BACKENDS)('X facts job (%s)', (backend) => {
     expect(votes).toHaveLength(2);
     expect((await q('select handle from sightings')).rows).toEqual([{ handle: 'new_starter' }]);
     expect((await q('select handle from appeals')).rows).toEqual([{ handle: 'new_starter' }]);
+    // SPEC 14.1: A becomes moved with its old X id, and B gets one event that names the row it took the state from.
+    expect(await identityEvents()).toEqual([
+      { source: 'facts', subject: 'new_starter', data: { from: 'unknown', to: 'ok', xUserId: S, tookFrom: 'old_starter' } },
+      { source: 'facts', subject: 'old_starter', data: { from: 'unknown', to: 'moved', xUserId: S, movedTo: 'new_starter' } },
+    ]);
 
     const after = await listed();
     expect([...after.keys()]).toEqual(['new_starter']);

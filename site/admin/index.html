@@ -13,22 +13,25 @@
   <body>
     <a class="skip" href="#main">Skip to content</a>
     <header class="adm-head">
-      <a class="adm-brand" href="/admin" aria-label="xslop admin home">
+      <a class="adm-brand" href="#home" aria-label="xslop admin home">
         <img src="../../brand/wordmark.svg" width="81" height="28" alt="xslop" />
         <span class="adm-brand-sub">admin</span>
       </a>
       <div class="adm-user" id="user-box" hidden>
-        <span id="user-name"></span>
+        <span class="adm-user-name">Logged in as <strong id="user-name"></strong></span>
         <button type="button" class="btn btn-quiet btn-small" id="logout">Log out</button>
       </div>
     </header>
 
-    <main id="main" class="adm-main">
+    <div id="tip" class="tip" role="tooltip" hidden></div>
+
+    <main id="main" class="adm-main" tabindex="-1">
       <p class="adm-status" id="status" aria-live="polite"></p>
       <noscript><p>The admin console needs JavaScript. Turn it on and reload this page.</p></noscript>
 
       <section id="login-view" class="login" aria-labelledby="login-title" hidden>
         <h1 id="login-title" class="adm-h1">Log in</h1>
+        <p class="login-lede">This console shows the state of the xslop list and the reason for each account and install. Only the maintainer can log in.</p>
         <form id="login-form" class="login-form" novalidate>
           <label class="field-label" for="login-user">Username</label>
           <input id="login-user" name="username" type="text" autocomplete="username" autocapitalize="none" enterkeyhint="next" spellcheck="false" maxlength="64" required aria-describedby="login-error" />
@@ -41,143 +44,26 @@
         </form>
       </section>
 
-      <section id="app-view" hidden>
-        <nav class="tabs" aria-label="Admin sections">
-          <a href="#overview" data-tab="overview"><kbd>1</kbd> Overview</a>
-          <a href="#review" data-tab="review"><kbd>2</kbd> Review</a>
-          <a href="#appeals" data-tab="appeals"><kbd>3</kbd> Appeals</a>
-          <a href="#accounts" data-tab="accounts"><kbd>4</kbd> Accounts</a>
-          <a href="#installs" data-tab="installs"><kbd>5</kbd> Installs</a>
-          <a href="#log" data-tab="log"><kbd>6</kbd> Log</a>
+      <div id="app-view" class="app" hidden>
+        <nav class="side" id="nav" aria-label="Admin sections">
+          <p class="side-group">Decide</p>
+          <a href="#home" data-nav="home" data-key="1"><kbd>1</kbd><span class="side-label">Home</span></a>
+          <a href="#review/pending" data-nav="review" data-key="2"><kbd>2</kbd><span class="side-label">Review</span><span class="count" data-count="pending"></span></a>
+          <a href="#review/disputed" data-nav="disputed"><span class="kbd-gap" aria-hidden="true"></span><span class="side-label">Disputed</span><span class="count" data-count="disputed"></span></a>
+          <a href="#appeals/open" data-nav="appeals" data-key="3"><kbd>3</kbd><span class="side-label">Appeals</span><span class="count" data-count="appeals"></span></a>
+          <span id="count-hint" hidden>waiting for you</span>
+          <p class="side-group">Records</p>
+          <a href="#accounts" data-nav="accounts" data-key="4"><kbd>4</kbd><span class="side-label">Accounts</span></a>
+          <a href="#installs" data-nav="installs" data-key="5"><kbd>5</kbd><span class="side-label">Installs</span></a>
+          <a href="#activity" data-nav="activity" data-key="6"><kbd>6</kbd><span class="side-label">Activity</span></a>
+          <a href="#lists" data-nav="lists" data-key="7"><kbd>7</kbd><span class="side-label">Lists</span></a>
+          <a href="#jobs" data-nav="jobs" data-key="8"><kbd>8</kbd><span class="side-label">Jobs</span></a>
+          <p class="side-group">Learn</p>
+          <a href="#help" data-nav="help" data-key="9"><kbd>9</kbd><span class="side-label">Help and words</span></a>
+          <p class="keys">Keys: <kbd>1</kbd> to <kbd>9</kbd> open a section, <kbd>/</kbd> jumps to the filter, <kbd>r</kbd> reloads.</p>
         </nav>
-        <p class="keys">Keys: <kbd>1</kbd> to <kbd>6</kbd> switch sections, <kbd>/</kbd> jumps to the filter, <kbd>r</kbd> reloads the section.</p>
-
-        <section class="view" id="view-overview" data-view="overview" aria-labelledby="overview-title" hidden>
-          <div class="view-head">
-            <h1 class="adm-h1" id="overview-title">Overview</h1>
-            <button type="button" class="btn btn-quiet btn-small" data-reload>Reload</button>
-          </div>
-          <dl class="kv" id="overview-data"></dl>
-        </section>
-
-        <section class="view" id="view-review" data-view="review" aria-labelledby="review-title" hidden>
-          <div class="view-head">
-            <h1 class="adm-h1" id="review-title">Review</h1>
-            <form class="filters" id="review-filter">
-              <label for="review-queue">Queue</label>
-              <select id="review-queue" name="queue" data-filter>
-                <option value="pending">Pending</option>
-                <option value="disputed">Disputed</option>
-                <option value="auto">Automatic</option>
-              </select>
-              <label for="review-limit">Rows</label>
-              <select id="review-limit" name="limit">
-                <option value="50">50</option>
-                <option value="100" selected>100</option>
-                <option value="200">200</option>
-                <option value="500">500</option>
-              </select>
-              <button type="submit" class="btn btn-quiet btn-small">Show</button>
-            </form>
-          </div>
-          <p class="view-note" id="review-note"></p>
-          <div class="table-wrap" tabindex="0" role="region" aria-labelledby="review-title">
-            <table class="grid" id="review-table"></table>
-          </div>
-        </section>
-
-        <section class="view" id="view-appeals" data-view="appeals" aria-labelledby="appeals-title" hidden>
-          <div class="view-head">
-            <h1 class="adm-h1" id="appeals-title">Appeals</h1>
-            <form class="filters" id="appeals-filter">
-              <label for="appeals-status">Status</label>
-              <select id="appeals-status" name="status" data-filter>
-                <option value="open">Open</option>
-                <option value="accepted">Accepted</option>
-                <option value="rejected">Rejected</option>
-              </select>
-              <button type="submit" class="btn btn-quiet btn-small">Show</button>
-            </form>
-          </div>
-          <div class="table-wrap" tabindex="0" role="region" aria-labelledby="appeals-title">
-            <table class="grid" id="appeals-table"></table>
-          </div>
-        </section>
-
-        <section class="view" id="view-accounts" data-view="accounts" aria-labelledby="accounts-title" hidden>
-          <div class="view-head">
-            <h1 class="adm-h1" id="accounts-title">Accounts</h1>
-            <form class="filters" id="accounts-filter">
-              <label for="accounts-handle">Handle</label>
-              <input id="accounts-handle" name="handle" type="search" enterkeyhint="search" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="16" placeholder="exact handle…" data-filter />
-              <label for="accounts-status">Status</label>
-              <select id="accounts-status" name="status">
-                <option value="">Any</option>
-                <option value="confirmed">Confirmed</option>
-                <option value="flagged">Flagged</option>
-                <option value="pending">Pending</option>
-                <option value="cleared">Cleared</option>
-                <option value="none">None</option>
-              </select>
-              <label for="accounts-limit">Rows</label>
-              <select id="accounts-limit" name="limit">
-                <option value="50">50</option>
-                <option value="100" selected>100</option>
-                <option value="200">200</option>
-                <option value="500">500</option>
-              </select>
-              <button type="submit" class="btn btn-quiet btn-small">Show</button>
-            </form>
-          </div>
-          <div class="table-wrap" tabindex="0" role="region" aria-labelledby="accounts-title">
-            <table class="grid" id="accounts-table"></table>
-          </div>
-        </section>
-
-        <section class="view" id="view-installs" data-view="installs" aria-labelledby="installs-title" hidden>
-          <div class="view-head">
-            <h1 class="adm-h1" id="installs-title">Installs</h1>
-            <form class="filters" id="installs-filter">
-              <label for="installs-sort">Sort</label>
-              <select id="installs-sort" name="sort" data-filter>
-                <option value="reputation">Lowest reputation</option>
-                <option value="created">Newest</option>
-                <option value="votes">Most votes</option>
-              </select>
-              <label for="installs-limit">Rows</label>
-              <select id="installs-limit" name="limit">
-                <option value="50">50</option>
-                <option value="100" selected>100</option>
-                <option value="200">200</option>
-                <option value="500">500</option>
-              </select>
-              <button type="submit" class="btn btn-quiet btn-small">Show</button>
-            </form>
-          </div>
-          <div class="table-wrap" tabindex="0" role="region" aria-labelledby="installs-title">
-            <table class="grid" id="installs-table"></table>
-          </div>
-        </section>
-
-        <section class="view" id="view-log" data-view="log" aria-labelledby="log-title" hidden>
-          <div class="view-head">
-            <h1 class="adm-h1" id="log-title">Log</h1>
-            <form class="filters" id="log-filter">
-              <label for="log-limit">Rows</label>
-              <select id="log-limit" name="limit" data-filter>
-                <option value="50">50</option>
-                <option value="100" selected>100</option>
-                <option value="200">200</option>
-                <option value="500">500</option>
-              </select>
-              <button type="submit" class="btn btn-quiet btn-small">Show</button>
-            </form>
-          </div>
-          <div class="table-wrap" tabindex="0" role="region" aria-labelledby="log-title">
-            <table class="grid" id="log-table"></table>
-          </div>
-        </section>
-      </section>
+        <div class="view" id="view"></div>
+      </div>
     </main>
   </body>
 </html>

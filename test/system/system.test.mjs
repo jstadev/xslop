@@ -246,7 +246,7 @@ describe('xslop system: judging v2', { timeout: 40 * MINUTE_MS }, () => {
   });
 
   it('step 1 (13.7, 13.8 list ids, 13.11 seed import): migrations 001 to 005, the seed import and the first score run publish the starter accounts with their X ids', async () => {
-    assert.match(bootOutput, /applied: 001_init\.sql, 002_hardening\.sql, 003_profiles\.sql, 004_judging_v2\.sql, 005_x_user_id_index\.sql/);
+    assert.match(bootOutput, /applied: 001_init\.sql, 002_hardening\.sql, 003_profiles\.sql, 004_judging_v2\.sql, 005_x_user_id_index\.sql, 006_history\.sql/);
     const seeded = Number(/seed accounts: (\d+)/.exec(bootOutput)[1]);
     assert.equal(seeded, seedIds.size);
     const db = await one("select count(*)::int as n, count(*) filter (where status = 'confirmed' and tier = 2 and identity = 'unknown')::int as confirmed from accounts where seed");
@@ -349,11 +349,10 @@ describe('xslop system: judging v2', { timeout: 40 * MINUTE_MS }, () => {
     assert.deepEqual([reused.status, (await reused.json()).error.code], [401, 'invalid_credentials'], 'one code works once');
 
     const row = await pendingRow(H.first);
-    const cells = await row.locator('td').allInnerTexts();
-    assert.equal(cells[3], 'Confirm');
-    assert.equal(cells[4], 'Too few voters with standing.');
-    assert.deepEqual([cells[5], cells[6]], ['5', '0']);
-    const links = await row.locator('a[aria-label^="Checked post"]').evaluateAll((as) => as.map((x) => x.getAttribute('href')));
+    assert.match(await row.locator('td[data-label="Why"]').innerText(), /^Pending\. The votes pass the test for confirmed, but the standing gate holds it: /);
+    const count = (key) => row.locator(`td[data-label="Votes"] [data-key="${key}"] dd`).innerText();
+    assert.deepEqual([await count('network'), await count('not-slop')], ['5', '0']);
+    const links = await row.locator('td[data-label="Votes"] [data-key="evidence"] dd a').evaluateAll((as) => as.map((x) => x.getAttribute('href')));
     assert.equal(links.length, 3);
     for (const href of links) assert.ok(seen.postsFirst.some((t) => href === `https://x.com/i/status/${t}`), `${href} is a checked post of the account`);
     await decide(row, 'Confirm', 'Yes, confirm', `@${H.first} is confirmed.`);
@@ -386,9 +385,9 @@ describe('xslop system: judging v2', { timeout: 40 * MINUTE_MS }, () => {
     assert.match(await barText(seen.sixthTab, seen.postsFirst[0]), /Hidden by xslop \(score 100\)/);
 
     await admin.locator('body').press('6');
-    const entry = admin.locator('#log-table tbody tr', { hasText: H.first });
+    const entry = admin.locator('#activity-feed .act[data-kind="admin"]', { hasText: `You confirmed @${H.first}.` });
     await entry.waitFor({ timeout: 15_000 });
-    assert.deepEqual((await entry.locator('td').allInnerTexts()).slice(1, 4), [log.session, 'confirm', H.first]);
+    assert.match(await entry.locator('.act-text').innerText(), new RegExp(`^You confirmed @${H.first}\\. The list went to version ${seen.version}\\.$`));
 
     // 13.6, 13.8: mute sync mutes a list account by its X id.
     await sixth.muteSharedList();
@@ -729,9 +728,9 @@ describe('xslop system: judging v2', { timeout: 40 * MINUTE_MS }, () => {
       const statusOf = async (handle) => (await first('select status from accounts where handle = $1', [handle])).status;
       assert.deepEqual([await statusOf('old_cleared'), await statusOf('old_confirmed')], ['cleared', 'confirmed']);
 
-      assert.match(await script('server/dist/scripts/migrate.js'), /applied: 003_profiles\.sql, 004_judging_v2\.sql, 005_x_user_id_index\.sql/);
+      assert.match(await script('server/dist/scripts/migrate.js'), /applied: 003_profiles\.sql, 004_judging_v2\.sql, 005_x_user_id_index\.sql, 006_history\.sql/);
       for (const table of everyTable.filter((t) => t !== 'schema_migrations')) assert.deepEqual(await fingerprint(table), baseline[table], `the migration leaves ${table} alone`);
-      assert.deepEqual((await upgrade.query('select name from schema_migrations order by name')).rows.map((r) => r.name), ['001_init.sql', '002_hardening.sql', '003_profiles.sql', '004_judging_v2.sql', '005_x_user_id_index.sql']);
+      assert.deepEqual((await upgrade.query('select name from schema_migrations order by name')).rows.map((r) => r.name), ['001_init.sql', '002_hardening.sql', '003_profiles.sql', '004_judging_v2.sql', '005_x_user_id_index.sql', '006_history.sql']);
       assert.equal((await first('select count(*)::int as n from profiles')).n, 0);
       assert.match(await script('server/dist/scripts/migrate.js'), /schema is up to date/, 'a second run changes nothing');
 

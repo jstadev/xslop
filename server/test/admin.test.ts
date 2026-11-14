@@ -345,8 +345,14 @@ describe.each(BACKENDS)('admin API (%s)', (backend) => {
         sightings: 0,
         appealsOpen: 0,
         listVersion: null,
-        score: { lastRunAt: expect.stringMatching(/Z$/), lastOkAt: expect.stringMatching(/Z$/), detail: { listed: 2 } },
-        facts: { lastRunAt: expect.stringMatching(/Z$/), lastOkAt: null, detail: { checked: 7 }, moved24h: 1 },
+        score: { lastRunAt: expect.stringMatching(/Z$/), lastOkAt: expect.stringMatching(/Z$/), detail: { listed: 2 }, runs24h: 0, failed24h: 0 },
+        facts: { lastRunAt: expect.stringMatching(/Z$/), lastOkAt: null, detail: { checked: 7 }, moved24h: 1, runs24h: 0, failed24h: 0 },
+        queues: { pending: 2, disputed: 0, auto: 0 },
+        list: null,
+        // The login is not an admin action of the day; the three installs are new.
+        last24h: { votes: 0, slopVotes: 0, notSlopVotes: 0, newInstalls: 3, statusChanges: 0, identityChanges: 0, standingChanges: 0, listVersions: 0, appeals: 0, adminActions: 0 },
+        // history.test.ts compares every value with the scoring constants.
+        rules: expect.objectContaining({ anchorsConfirm: expect.any(Number), networkDailyVotes: expect.any(Number) }),
       });
     });
   });
@@ -446,7 +452,9 @@ describe.each(BACKENDS)('admin API (%s)', (backend) => {
       const s = await session();
       const sessionId = createHash('sha256').update(s.token).digest('hex').slice(0, 16);
       await tdb.db.query("insert into accounts (handle, status, tier, score, listed_at) values ('logged_one', 'flagged', 1, 0.55, '2026-11-01T00:00:00Z')");
-      expect((await write(s, '/api/admin/accounts/logged_one', { action: 'protect' })).statusCode).toBe(200);
+      const protected_ = await write(s, '/api/admin/accounts/logged_one', { action: 'protect' });
+      expect(protected_.statusCode).toBe(200);
+      const protect = protected_.json();
       expect((await write(s, '/api/admin/accounts/missing_one', { action: 'reset' })).statusCode).toBe(404);
       const rows = await logRows();
       expect(rows.map((r) => [r.session, r.action, r.target])).toEqual([
@@ -455,7 +463,9 @@ describe.each(BACKENDS)('admin API (%s)', (backend) => {
       ]);
       expect(rows[1]!.before).toMatchObject({ account: { status: 'flagged', tier: 1, protected: false, override: null, listed_at: '2026-11-01T00:00:00.000Z' } });
       const log = (await get(s, '/api/admin/log?limit=1')).json();
-      expect(log).toEqual({ entries: [{ id: 2, at: expect.stringMatching(/Z$/), session: sessionId, action: 'protect', target: 'logged_one', before: rows[1]!.before }] });
+      expect(log).toEqual({ entries: [{ id: 2, at: expect.stringMatching(/Z$/), session: sessionId, action: 'protect', target: 'logged_one', before: rows[1]!.before, after: protect }] });
+      // after: the answer of the change (SPEC 14.1); null for the login.
+      expect((await tdb.db.query<{ after: unknown }>('select after from admin_log order by id')).rows.map((r) => r.after)).toEqual([null, protect]);
       for (const q of ['?limit=abc', '?limit=1000', '?x=1']) expect((await get(s, `/api/admin/log${q}`)).statusCode).toBe(400);
     });
 

@@ -1,5 +1,4 @@
-// Tolerant readers for admin list rows. SPEC 5.6 names the routes but not every field,
-// so the console accepts a bare array or {items|<name>: [...]}, and camelCase or snake_case keys.
+// Tolerant readers for admin answers: a missing or mistyped field gives a safe default, so one odd row never breaks a view.
 
 export type Row = Record<string, unknown>;
 
@@ -23,4 +22,16 @@ export function str(row: Row, ...names: string[]): string {
 export function num(row: Row, ...names: string[]): number | null {
   const v = field(row, ...names);
   return typeof v === 'number' && Number.isFinite(v) ? v : null;
+}
+
+export const bool = (row: Row, name: string): boolean => row[name] === true;
+
+export const obj = (v: unknown): Row => (isRow(v) ? v : {});
+
+export const rows = (v: unknown): Row[] => (Array.isArray(v) ? v.filter(isRow) : []);
+
+/** A string, or null when the field is missing or empty. */
+export function strOrNull(row: Row, name: string): string | null {
+  const v = row[name];
+  return typeof v === 'string' && v !== '' ? v : null;
 }

@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';
 import type { Browser, Page } from 'playwright';
 import { launch, serve } from './helpers.ts';
+import { uuidOf } from './server.ts';
 
 const SIZES = [
   [320, 568],
@@ -45,26 +46,39 @@ const VIEWS: { name: string; path: string; scope?: string; show?: (page: Page) =
   },
   { name: 'admin login', path: '/admin', show: (page) => page.locator('#login-view').waitFor() },
   {
-    name: 'admin overview',
+    name: 'admin home',
     path: '/admin',
     show: async (page) => {
       await page.fill('#login-user', 'operator');
       await page.fill('#login-pass', 'correct horse battery staple 42');
       await page.press('#login-pass', 'Enter');
-      await page.locator('#overview-data dt').first().waitFor();
+      await page.locator('#view .health').first().waitFor();
     },
   },
-  { name: 'admin review', path: '', show: (page) => switchAdmin(page, '2', '#review-table') },
-  { name: 'admin appeals', path: '', show: (page) => switchAdmin(page, '3', '#appeals-table') },
-  { name: 'admin accounts', path: '', show: (page) => switchAdmin(page, '4', '#accounts-table') },
-  { name: 'admin installs', path: '', show: (page) => switchAdmin(page, '5', '#installs-table') },
-  { name: 'admin log', path: '', show: (page) => switchAdmin(page, '6', '#log-table') },
+  { name: 'admin review', path: '', show: (page) => switchAdmin(page, '2', '#review-table td') },
+  { name: 'admin appeals', path: '', show: (page) => switchAdmin(page, '3', '#appeals-table td') },
+  { name: 'admin accounts', path: '', show: (page) => switchAdmin(page, '4', '#accounts-table td') },
+  { name: 'admin account page', path: '', show: (page) => openAdmin(page, '#account/pendingperson', '#checks-table td') },
+  { name: 'admin installs', path: '', show: (page) => switchAdmin(page, '5', '#installs-table td') },
+  { name: 'admin install page', path: '', show: (page) => openAdmin(page, `#install/${uuidOf('install:s5')}`, '#standing-table td') },
+  { name: 'admin activity', path: '', show: (page) => switchAdmin(page, '6', '#activity-feed .act') },
+  { name: 'admin lists', path: '', show: (page) => switchAdmin(page, '7', '#view .versions li') },
+  { name: 'admin jobs', path: '', show: (page) => switchAdmin(page, '8', '#jobs-score td') },
+  { name: 'admin help', path: '', show: (page) => switchAdmin(page, '9', '#term-score') },
   { name: '404', path: '/no-such-page' },
 ];
 
-async function switchAdmin(page: Page, key: string, table: string): Promise<void> {
+/** A number key opens an admin view; `ready` is a part that only the rendered view has. */
+async function switchAdmin(page: Page, key: string, ready: string): Promise<void> {
   await page.keyboard.press(key);
-  await page.locator(`${table} td`).first().waitFor();
+  await page.locator(ready).first().waitFor();
+}
+
+async function openAdmin(page: Page, hash: string, ready: string): Promise<void> {
+  await page.evaluate((h) => {
+    location.hash = h;
+  }, hash);
+  await page.locator(ready).first().waitFor();
 }
 
 /** Sideways scroll of the page, every tap target under 44 px and every field under 16 px, inside `scope`. */

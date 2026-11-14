@@ -1023,3 +1023,98 @@ Known and open after round 2:
 - All stored keys of the extension share one quota. With votes and your own mutes at their caps the list fits up to about 136,000 rows; above that the Chrome and Firefox builds need `unlimitedStorage`.
 - Each text of `GET /api/v1/criteria` is 1 to 600 characters and each list holds at most 16 items; a test holds both limits, because the site refuses a longer answer.
 - The system test (`test/system/`) also holds: votes of installs without standing alone start no request of the X facts job outside work order (3).
+
+## 14. Admin console v3: full history and a console that explains it (2026-11-13). Wins over 5.6, 8 and 13.8 where they differ.
+
+Order of the maintainer: "rebuild the whole admin UI ... everything recorded and nicely displayed ... so i can understand everything". Before this section the server kept only the last run of each job, no history of status, identity or standing changes, and only the state before an admin change.
+
+### 14.1 What the server records (migration `006_history.sql`, additive only)
+
+```
+events(id bigserial pk, at timestamptz not null default now(),
+       source text not null check (source in ('score','facts')),
+       kind text not null check (kind in ('status','identity','standing')),
+       subject text not null,            -- a handle, or an install id for 'standing'
+       data jsonb not null)
+       index (subject, id desc), index (kind, id desc), index (at)
+job_runs(id bigserial pk, job text not null check (job in ('score','profiles')),
+         started_at timestamptz not null, ended_at timestamptz not null default now(),
+         ok boolean not null, detail jsonb not null)
+         index (job, id desc)
+admin_log + after jsonb                  -- the result of the change; null for login and logout
+```
+
+- **status** (score job, in the transaction that writes the account): one row for each account whose `(status, tier, parts.gate, parts.want)` differs from the stored row. `data = {"from":{"status","tier","gate","want"},"to":{"status","tier","gate","want","reason","score","networks","anchors","notSlop","dissent","evidence"}}`; `score` is 0 to 100. A change of the score alone writes no row.
+- **standing** (score job): one row for each install whose stored `standing` flips, also by the ban rule of `writeInstalls`. `data = {"standing":bool,"reputation":0..1,"goodMarks":n,"banned":bool}`.
+- **identity** (X facts job, in the transaction of the change): one row for each account whose `identity` changes (`unknown`, `ok`, `gone`, `moved`). `data = {"from","to","xUserId","movedTo"}`. A rename also writes a row on the new handle B: `data = {"from","to":"ok","xUserId","tookFrom":"<A>"}`.
+- **job_runs**: every score run and every X facts run that did work or failed writes one row: `ok`, `started_at`, `ended_at` and `detail` (the same object as `jobs.detail`, or `{"error"}`). A skipped run (lock held) writes none.
+- The admin API writes `admin_log.after` = the answer of the change, without the list body.
+- Retention (score job): `events` older than 400 days, `job_runs` older than 30 days.
+- Privacy: no row stores an address, an `ip_hash`, a post text or a cookie. The console names a network by `network` = the first 8 hex characters of `sha256(ip_hash)`; no route returns `ip_hash`.
+
+### 14.2 Admin read routes (all GET, under the session guard of 5.6, `additionalProperties:false`, no coercion)
+
+`Activity = {"key":string,"at":iso,"kind","source","subject":string|null,"data":object}`, newest first, `key` unique and stable. Kinds:
+
+| kind | source | subject | data |
+|---|---|---|---|
+| `admin` | `admin` | admin_log target | `{"action","session","before","after"}` |
+| `status` | `score` | handle | 14.1 |
+| `identity` | `facts` | handle | 14.1 |
+| `standing` | `score` | install id | 14.1 |
+| `list` | `list` | version as text | `{"version","count","from","added":[[handle,score,tier]],"addedCount","removed":[handle],"removedCount"}`, each array at most 20 items. `added` holds new entries and entries whose score, tier or X id changed. |
+| `appeal` | `public` | handle | `{"appealId","status"}` at `appeals.created_at` (the decision is an `admin` item) |
+| `run` | `score` or `profiles` | null | `{"job","ok":false,"error","ms"}`: failed runs only |
+| `vote` | `public` | handle | `{"install","network","value","first":bool}` at `votes.updated_at`; `first` when the vote was never changed |
+| `install` | `public` | install id | `{"network","extVersion"}` at `installs.created_at` |
+
+- `GET /api/admin/activity?kinds=<csv>&subject=<handle or uuid>&cursor=<opaque>&limit=<1..200, default 100>` → `{"items":[Activity],"next":string|null}`. Without `kinds`: every kind except `vote` and `install`. `subject` = a handle (1 to 15 of `[a-z0-9_]`) or an install id; for an install id the vote items of that install also match. `next` is the cursor of the next page, null at the end; a cursor is at most 120 characters of `[A-Za-z0-9_.:-]`, and a bad cursor is 400 `bad_request`.
+- `GET /api/admin/overview` keeps its fields and adds:
+  - `queues: {"pending","disputed","auto"}` (the `total` that `/review` gives for each queue),
+  - `list: {"version","count","generatedAt"}` (newest snapshot, or null),
+  - `last24h: {"votes","slopVotes","notSlopVotes","newInstalls","statusChanges","identityChanges","standingChanges","listVersions","appeals","adminActions"}`,
+  - `score.runs24h`, `score.failed24h`, `facts.runs24h`, `facts.failed24h`,
+  - `rules`: the constants of 13.2 as numbers: `standingMinAgeDays`, `standingMinGoodMarks`, `standingMinReputation`, `anchorsFlag`, `anchorsConfirm`, `evidenceFlag`, `evidenceConfirm`, `flagMinNetworks`, `confirmMinNetworks`, `confirmMinTrust`, `flagShareBound`, `confirmShareBound`, `protectedMinFollowers`, `maxAutoConfirmsPerDay`, `maxAutoFlagsPerDay`, `strikeMaxCrowd`, `clearedReturnMinNetworks`, `seedDisputeMinNetworks`, `networkDailyVotes`.
+- `GET /api/admin/accounts/:handle` → 404 `not_found` without a row, else:
+  ```
+  {"account": <the row of GET /api/admin/accounts> + firstSeenAt, listedAt, confirmedAt, identityAt, movedTo, seedSource, parts (the whole object), name, followers,
+   "profile": {"xId","name","followers","gone","misses","fetchedAt","avatar":bool} | null,
+   "list": {"version","inList":bool,"score","tier"} | null,
+   "votes": {"slop","notSlop","truncated":bool,
+             "networks":[{"network","voice":"slop"|"not_slop"|"split","standing":bool,
+                          "installs":[{"id","value","standing","trusted","banned","reputation","votedAt","changedAt","tweetId"}]}]},
+   "evidence": [{"tweetId","ok","checkedAt","matchesId":bool}],
+   "sightings": {"stored","verified","recent":[{"tweetId","parentTweetId","replyAt","latencySec","verified"}]},
+   "clearedVotes": {"rows","networks","slopNetworks","clearedAt"},
+   "appeals": [{"appealId","status","createdAt","decidedAt","note","message","email","code"}],
+   "timeline": [Activity]}
+  ```
+  `votes` reads at most 500 vote rows (`truncated` true past that). The `voice` of a network follows 13.2: the votes of its installs with standing when it has one, else all its votes; `split` on a tie. `recent` holds the newest 20 sightings. `timeline` holds the items of kinds `admin`, `status`, `identity`, `appeal`, `list` (the versions that added, changed or removed the handle) for the handle, newest 200.
+- `GET /api/admin/installs/:id` → 404 `not_found` without a row, else:
+  ```
+  {"install": <the row of GET /api/admin/installs> + "network",
+   "standing": {"has","trusted","banned","ageDays","goodMarks","reputation","needs":{"ageDays","goodMarks","reputation"}},
+   "votes": {"total","items":[{"handle","value","votedAt","changedAt","tweetId","accountStatus"}]},   -- newest 200
+   "network": {"network","installs","banned","strikes":[{"handle","clearedAt","standing"}]},
+   "timeline": [Activity]}                                                                          -- kinds admin and standing, newest 200
+  ```
+- `GET /api/admin/lists?limit=<1..60, default 30>` → `{"versions":[{"version","generatedAt","count","from","added":[[handle,score,tier]],"addedCount","removed":[handle],"removedCount"}]}`, newest first; each array at most 200 items.
+- `GET /api/admin/jobs?job=score|profiles&limit=<1..500, default 100>` → `{"runs":[{"id","job","startedAt","endedAt","ms","ok","detail"}],"last":{"lastRunAt","lastOkAt","detail"}}`.
+- `GET /api/admin/accounts` rows add `name`, `followers` and `listedAt`. `GET /api/admin/installs` rows add `network`. `GET /api/admin/log` entries add `after`.
+- The write routes of 5.6 and 13.8 do not change.
+
+### 14.3 The console (`/admin`, `site/admin/index.html`, `site/src/admin/`, `site/src/styles/admin.css`)
+
+Goal: the maintainer reads the state of the whole system and the reason for each state in plain words, and acts from the same screen.
+
+- **Frame**: a header (wordmark, user, log out) and a side navigation (a bar at the top below 48rem) with a live count on Review (pending), Disputed and Appeals (open). Routes are hashes: `#home`, `#review/pending|disputed|auto`, `#appeals/open|accepted|rejected`, `#accounts`, `#account/<handle>`, `#installs`, `#install/<id>`, `#activity`, `#lists`, `#jobs`, `#help`. `#overview` opens `#home`, `#log` opens `#activity` with only `admin` items. The hash stays the only source of the view; a bad handle or id shows a message, never a request.
+- **Home**: one health line per job ("The score job ran 3 minutes ago and succeeded", red when the last run failed or the last success is older than 15 minutes for the score job or 10 minutes for the X facts job), the list (version, accounts, time), the queues as cards with their count and the next step in one sentence, the numbers of the last 24 hours, installs (total, with standing, trusted, banned), and the newest 15 activity items.
+- **Every state has its reason in words.** The console builds one sentence for each status from `parts` and `rules`, for example: "Pending. The votes pass the test for confirmed, but the standing gate holds it: 1 network with standing marked it, and confirmed needs 2." Each gate, each status, `want`, `identity`, `override`, `seed`, `protected`, `dissent`, `notSlop`, `anchors`, `evidence`, `behaviour`, reputation, standing, good marks, strikes and penalties has a short definition in a glossary (`#help`), and each term on a screen links to it or shows it on focus and hover.
+- **Account page** (`#account/<handle>`): name, handle (link to X), avatar from `/api/v1/avatars/:handle` when `profile.avatar`, followers, X id, identity; the status sentence; a checklist of the gates with "has / needs" numbers; whether the newest list holds it; the decisions (the buttons of the review queue); the networks that voted with their voice, standing and installs (each install links to its page); checked posts (link to X, ok or not); reply timing; stored clear rows; appeals; the timeline of the account.
+- **Install page** (`#install/<id>`): network, age, version, last seen; standing as a checklist against `needs`; trust and ban buttons; its votes (each handle links to its account page); the network's installs and strikes; its timeline.
+- **Activity**: the feed of 14.2 grouped by day, one plain sentence per item ("The score job moved @a from pending to flagged.", "You confirmed @b. The list went to version 412.", "Install 3f2a9c1e gained standing."), each subject a link to its page, filters by kind (with `vote` and `install` off by default) and by subject, and "Show older" with the cursor. An `admin` item shows the state before and after as a readable list of changed fields, never raw JSON by default (a "raw" toggle may show it).
+- **Lists**: each version with its time, count, and the handles that joined or left (links).
+- **Jobs**: the runs of each job (time, duration, result, the main numbers of `detail`), failed runs in the error colour with the error text.
+- **Review, Appeals, Accounts, Installs**: the views of before, with the same writes and the same confirm step, plus: each row opens its account or install page, each column header has its definition, the queue note says what the queue holds and what a decision does.
+- Kept from before: the two-click confirm on every write (first click arms for 4 s and names what the second click sends); `x-csrf` and Origin on writes; one live request per view (a newer one aborts the older); on logout and on a session end the console aborts its requests and empties every view, the user name and the counts; keyboard keys (numbers switch views, `/` focuses the filter, `r` reloads); below 48rem each table row shows as label and value lines and nothing scrolls sideways; the CSP of 5.7 (no inline script or style attribute in HTML, no CDN); no new dependency; the text rules of `CONTRIBUTING.md` (you, no we, no em-dash).
+- Times show as relative text with the full local time on hover and focus. Numbers use `formatCount`. Empty states say what is empty and why.

@@ -79,6 +79,20 @@ const listed = async (q: Q) => [...((await loadLatestEntries(q))?.entries.values
 const installRow = async (q: Q, id: string) =>
   (await q.query<{ reputation: number; standing: boolean; good_marks: number }>('select reputation, standing, good_marks from installs where id = $1', [id])).rows[0]!;
 const ago = (ms: number) => new Date(Date.now() - ms);
+const events = async (q: Q, kind: string) =>
+  (await q.query<{ source: string; subject: string; data: Record<string, unknown> }>('select source, subject, data from events where kind = $1 order by id', [kind])).rows;
+const runs = async (q: Q) => (await q.query<{ job: string; ok: boolean; detail: Record<string, unknown>; ordered: boolean }>('select job, ok, detail, started_at <= ended_at as ordered from job_runs order by id')).rows;
+/** The fake engine with other parts for some handles. */
+const withParts = (compute: ComputeScores, parts: Record<string, Record<string, unknown>>): ComputeScores => (input) => {
+  const out = compute(input);
+  for (const a of out.accounts) Object.assign(a.parts, parts[a.handle] ?? {});
+  return out;
+};
+/** A session whose advisory lock is held by another run. */
+const lockHeld = (db: Db): Db => ({
+  ...db,
+  session: (fn) => db.session((s) => fn({ ...s, query: (text, params) => (text.includes('pg_try_advisory_lock') ? Promise.resolve({ rows: [{ ok: false }], rowCount: 1 } as never) : s.query(text, params)) })),
+});
 const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
 
@@ -428,6 +442,8 @@ describe.each(BACKENDS)('score job (%s)', (backend) => {
     const failed = (await q.query<{ last_ok_at: Date; detail: { error: string } }>("select last_ok_at, detail from jobs where name = 'score'")).rows[0]!;
     expect(failed.detail.error).toBe('model exploded');
     expect(failed.last_ok_at.getTime()).toBe(before.getTime());
+    // SPEC 14.1: the ok run and the failed run each wrote one job_runs row.
+    expect((await runs(q)).map((r) => [r.job, r.ok, r.ok ? r.detail.listed : r.detail, r.ordered])).toEqual([['score', true, 1, true], ['score', false, { error: 'model exploded' }, true]]);
 
     const bad: [string, ComputeScores][] = [
       ['NaN score', (input) => { const out = fakeCompute({ a: [0.1, 0] })(input); out.accounts[0]!.score = Number.NaN; return out; }],
@@ -472,9 +488,11 @@ describe.each(BACKENDS)('score job (%s)', (backend) => {
       await other.query("select pg_advisory_lock($1::int, hashtext('xslop_other_channel'))", [SCORE_LOCK]);
       expect((await runScoreJob(q, fakeCompute({}))).skipped).toBe(false);
       await q.query('delete from jobs');
+      await q.query('delete from job_runs');
       await other.query('select pg_advisory_lock($1::int, hashtext(current_schema()))', [SCORE_LOCK]);
       expect((await runScoreJob(q, fakeCompute({}))).skipped).toBe(true);
       expect((await q.query('select 1 from jobs')).rows).toHaveLength(0);
+      expect(await runs(q)).toEqual([]);
       await other.query('select pg_advisory_unlock($1::int, hashtext(current_schema()))', [SCORE_LOCK]);
       expect((await runScoreJob(q, fakeCompute({}))).skipped).toBe(false);
     } finally {
@@ -531,6 +549,17 @@ describe.each(BACKENDS)('score job (%s)', (backend) => {
       expect((await q.query<{ target: string }>('select target from admin_log')).rows).toEqual([{ target: 'b' }]);
     });
 
+    it(`removes events older than ${RETENTION.events} days and job runs older than ${RETENTION.jobRuns} days (SPEC 14.1)`, async () => {
+      await q.query(`insert into events (at, source, kind, subject, data) values
+        (${days(RETENTION.events + 1)}, 'score', 'status', 'old_one', '{}'), (${days(RETENTION.events - 1)}, 'facts', 'identity', 'kept_one', '{}')`);
+      await q.query(`insert into job_runs (job, started_at, ended_at, ok, detail) values
+        ('score', ${days(RETENTION.jobRuns + 1)}, ${days(RETENTION.jobRuns + 1)}, true, '{}'), ('profiles', ${days(RETENTION.jobRuns - 1)}, ${days(RETENTION.jobRuns - 1)}, false, '{}')`);
+      await runScoreJob(q, capture(() => undefined));
+      expect((await q.query<{ subject: string }>('select subject from events')).rows).toEqual([{ subject: 'kept_one' }]);
+      // The old run is gone; the run of 29 days ago and the run that did the retention stay.
+      expect((await q.query<{ job: string }>('select job from job_runs order by id')).rows).toEqual([{ job: 'profiles' }, { job: 'score' }]);
+    });
+
     it(`removes installs with no vote and no activity for ${RETENTION.installs} days`, async () => {
       const idle = await install(q, { days: RETENTION.installs + 5, seenDays: RETENTION.installs + 1 });
       const neverSeen = await install(q, { days: RETENTION.installs + 1 });
@@ -568,6 +597,106 @@ describe.each(BACKENDS)('score job (%s)', (backend) => {
       await expect(runScoreJob(broken, fakeCompute({ a: [0.9, 2] }))).rejects.toThrow('retention failed');
       expect((await listed(q)).map((e) => e[0])).toEqual(['a']);
       expect((await q.query<{ ok: boolean }>("select last_ok_at is not null as ok from jobs where name = 'score'")).rows[0]!.ok).toBe(true);
+      // One run, one job_runs row: it failed in its retention.
+      expect((await runs(q)).map((r) => [r.ok, r.detail])).toEqual([[false, { error: 'retention failed' }]]);
+      // Its events stay with the list: they were written in the transaction of the change.
+      expect((await events(q, 'status')).map((e) => e.subject)).toEqual(['a']);
+    });
+  });
+
+  describe('history (SPEC 14.1)', () => {
+    it('writes a status event when status, tier, gate or want change, and none when only the score changes', async () => {
+      await q.query("insert into accounts (handle, seed) values ('moving_one', true), ('steady_one', true)");
+      await runScoreJob(q, fakeCompute({ moving_one: [0.5, 1], steady_one: [0, 0] }));
+      expect(await events(q, 'status')).toEqual([{
+        source: 'score',
+        subject: 'moving_one',
+        data: {
+          from: { status: 'none', tier: 0, gate: null, want: null },
+          to: { status: 'flagged', tier: 1, gate: null, want: null, reason: 'test', score: 50, networks: 0, anchors: 0, notSlop: 0, dissent: 0, evidence: 0 },
+        },
+      }]);
+      // The score alone: the row is written, no event.
+      await runScoreJob(q, fakeCompute({ moving_one: [0.75, 1] }));
+      expect((await account(q, 'moving_one')).score).toBe(0.75);
+      expect(await events(q, 'status')).toHaveLength(1);
+      // want alone, then gate alone, then status and tier.
+      await runScoreJob(q, withParts(fakeCompute({ moving_one: [0.75, 1] }), { moving_one: { want: 'confirmed' } }));
+      await runScoreJob(q, withParts(fakeCompute({ moving_one: [0.75, 1] }), { moving_one: { want: 'confirmed', gate: 'evidence', anchors: 2, networks: 4 } }));
+      await runScoreJob(q, withParts(fakeCompute({ moving_one: [0.5, 0, 'pending'] }), { moving_one: { want: 'confirmed', gate: 'evidence', anchors: 2, networks: 4 } }));
+      const all = await events(q, 'status');
+      expect(all.map((e) => [e.data.from, e.data.to])).toEqual([
+        [{ status: 'none', tier: 0, gate: null, want: null }, expect.objectContaining({ status: 'flagged', tier: 1 })],
+        [{ status: 'flagged', tier: 1, gate: null, want: null }, expect.objectContaining({ status: 'flagged', tier: 1, gate: null, want: 'confirmed', score: 75 })],
+        [{ status: 'flagged', tier: 1, gate: null, want: 'confirmed' }, expect.objectContaining({ gate: 'evidence', want: 'confirmed', anchors: 2, networks: 4 })],
+        [{ status: 'flagged', tier: 1, gate: 'evidence', want: 'confirmed' }, expect.objectContaining({ status: 'pending', tier: 0, gate: 'evidence', score: 50 })],
+      ]);
+    });
+
+    it('writes the status events of a real engine run: brand-new networks make an account pending with gate standing', async () => {
+      await q.query("insert into accounts (handle, x_user_id, identity) values ('crowd_target', '9001', 'ok')");
+      for (let i = 0; i < 2; i++) await castVote(q, await install(q, { days: 0 }), 'crowd_target');
+      await runScoreJob(q, real());
+      expect(await events(q, 'status')).toEqual([{
+        source: 'score',
+        subject: 'crowd_target',
+        data: {
+          from: { status: 'none', tier: 0, gate: null, want: null },
+          to: { status: 'pending', tier: 0, gate: 'standing', want: 'flagged', reason: expect.any(String), score: expect.any(Number), networks: 2, anchors: 0, notSlop: 0, dissent: 0, evidence: 0 },
+        },
+      }]);
+      await runScoreJob(q, real());
+      expect(await events(q, 'status')).toHaveLength(1);
+    });
+
+    it('writes a standing event when the stored standing flips, also through the ban rule, and none for a reputation change alone', async () => {
+      const voter = await install(q, { net: 'v1', days: 8 });
+      const dissenter = await install(q, { net: 'v2', days: 8 });
+      const marked = ['marked_one', 'marked_two', 'marked_three'];
+      for (const h of marked) await castVote(q, voter, h, 1, { at: ago(HOUR) });
+      await castVote(q, dissenter, 'marked_one', 0, { at: ago(HOUR) });
+      await runScoreJob(q, real());
+      expect(await events(q, 'standing')).toEqual([]);
+
+      for (const h of marked) await adminConfirm(q, h);
+      await runScoreJob(q, real());
+      // The voter gains standing; the dissenter loses reputation and keeps no standing: one event.
+      expect(await installRow(q, dissenter)).toMatchObject({ standing: false, reputation: expect.closeTo(1 / 3, 6) });
+      expect(await events(q, 'standing')).toEqual([{ source: 'score', subject: voter, data: { standing: true, reputation: expect.closeTo(0.8, 6), goodMarks: 3, banned: false } }]);
+      await runScoreJob(q, real());
+      expect(await events(q, 'standing')).toHaveLength(1);
+
+      // A ban ends the standing through the ban rule of writeInstalls: the banned install is not loaded.
+      await q.query('update installs set banned_at = now() where id = $1', [voter]);
+      await runScoreJob(q, real());
+      expect((await events(q, 'standing')).slice(1)).toEqual([{ source: 'score', subject: voter, data: { standing: false, reputation: expect.closeTo(0.8, 6), goodMarks: 3, banned: true } }]);
+    });
+
+    it('writes its events in the transaction of the change: a run that fails at its heartbeat leaves no event and no change', async () => {
+      await q.query("insert into accounts (handle, seed) values ('a', true)");
+      const trusted = await install(q, { trusted: true });
+      await castVote(q, trusted, 'a');
+      const failing: Db = {
+        ...q,
+        session: (fn) => q.session((s) => fn({ ...s, tx: (write) => s.tx((t) => write({ query: (text, params) => (text.startsWith('insert into jobs') ? Promise.reject(new Error('heartbeat failed')) : t.query(text, params)) })) })),
+      };
+      await expect(runScoreJob(failing, fakeCompute({ a: [0.9, 2] }))).rejects.toThrow('heartbeat failed');
+      expect([(await account(q, 'a')).tier, (await installRow(q, trusted)).standing]).toEqual([0, false]);
+      expect((await q.query('select 1 from events')).rows).toEqual([]);
+      expect((await runs(q)).map((r) => [r.ok, r.detail])).toEqual([[false, { error: 'heartbeat failed' }]]);
+      // The same run without the fault writes both events.
+      await runScoreJob(q, fakeCompute({ a: [0.9, 2] }));
+      expect([(await events(q, 'status')).length, (await events(q, 'standing')).length]).toEqual([1, 1]);
+    });
+
+    it('writes one job_runs row for a run with the heartbeat detail, and none for a skipped run', async () => {
+      await q.query("insert into accounts (handle, seed) values ('a', true)");
+      expect((await runScoreJob(lockHeld(q), fakeCompute({}))).skipped).toBe(true);
+      expect(await runs(q)).toEqual([]);
+      await runScoreJob(q, fakeCompute({ a: [0.9, 2] }));
+      const [run] = await runs(q);
+      expect(run).toMatchObject({ job: 'score', ok: true, ordered: true });
+      expect(run!.detail).toEqual(await detail(q));
     });
   });
 

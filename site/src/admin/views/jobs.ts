@@ -51,7 +51,7 @@ export async function jobs(_route: unknown, ctx: Ctx): Promise<Node[]> {
         j.name === 'score job' ? 'Score job' : 'X facts job',
         h('p', { class: 'lede' }, j.what),
         healthLine(j.name, j.term, obj(body.last), j.stale),
-        note(`The newest ${plural(runs.length, 'run')}, ${formatCount(failed)} failed. A run that found its lock held is not recorded.`),
+        note(`The newest ${plural(runs.length, 'run')}, ${formatCount(failed)} failed. A run that found its lock held is not recorded${j.job === 'profiles' ? ', and neither is a run that picked no account' : ''}.`),
         table(
           `Runs of the ${j.name}`,
           [

@@ -18,14 +18,13 @@ function brandRootFiles(): Plugin {
   };
 }
 
-/** Replaces <!--include:name--> with partials/name.html, so the footer, the head and the mark exist once. */
+/** Replaces <!--include:name--> with partials/name.html, so the footer, the head and the mark exist once. A partial can include another partial. */
 function partials(): Plugin {
+  const include = (html: string): string =>
+    html.replace(/<!--include:([a-z-]+)-->/g, (_, name: string) => include(readFileSync(resolve(root, 'partials', `${name}.html`), 'utf8').trimEnd()));
   return {
     name: 'xslop-partials',
-    transformIndexHtml: {
-      order: 'pre',
-      handler: (html) => html.replace(/<!--include:([a-z-]+)-->/g, (_, name: string) => readFileSync(resolve(root, 'partials', `${name}.html`), 'utf8').trimEnd()),
-    },
+    transformIndexHtml: { order: 'pre', handler: include },
   };
 }
 

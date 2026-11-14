@@ -12,7 +12,8 @@
   "build": "npm run ci:install && npm run build",
   "test": "npm test",
   "migrate": "node server/dist/scripts/migrate.js && node server/dist/scripts/import-seed.js && node server/dist/jobs/score.js",
-  "script": null
+  "script": null,
+  "assets": ["extension/dist/xslop-*.zip"]
  },
  "runtime": {
   "user": "xslop",

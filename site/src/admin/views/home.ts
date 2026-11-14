@@ -13,8 +13,11 @@ import { head, type Ctx } from '../view.ts';
 
 const MINUTE = 60_000;
 
-/** One health line: "The score job ran 3 minutes ago and succeeded." Red when the last run failed or the last success is old. */
-export function healthLine(name: string, term: TermKey, job: Row, staleMinutes: number, now = Date.now()): HTMLElement {
+/**
+ * One health line: "The score job ran 3 minutes ago and succeeded." Red when the last run failed or the last success is old.
+ * `runUnit` names what runs24h counts: an X facts run that picks no account writes no job_runs row (SPEC 14.1).
+ */
+export function healthLine(name: string, term: TermKey, job: Row, staleMinutes: number, now = Date.now(), runUnit: [string, string] = ['run', 'runs']): HTMLElement {
   const runAt = str(job, 'lastRunAt');
   const okAt = str(job, 'lastOkAt');
   const runs = num(job, 'runs24h');
@@ -33,7 +36,7 @@ export function healthLine(name: string, term: TermKey, job: Row, staleMinutes: 
     if (lastFailed) line.append(' The last success was ', okAt ? time(okAt) : 'never', '.');
     else if (stale) line.append(` That is more than ${staleMinutes} minutes ago.`);
   }
-  if (runs !== null) line.append(` ${plural(runs, 'run')} in 24 hours, ${formatCount(failed ?? 0)} failed.`);
+  if (runs !== null) line.append(` ${plural(runs, runUnit[0], runUnit[1])} in 24 hours, ${formatCount(failed ?? 0)} failed.`);
   line.dataset.health = bad ? 'bad' : 'ok';
   return line;
 }
@@ -113,7 +116,7 @@ export async function home(_route: unknown, ctx: Ctx): Promise<Node[]> {
     block(
       'Health',
       healthLine('score job', 'score-job', score, 15),
-      healthLine('X facts job', 'facts-job', factsJob, 10),
+      healthLine('X facts job', 'facts-job', factsJob, 10, Date.now(), ['run with work', 'runs with work']),
       listLine,
       moved === null || moved === 0 ? null : h('p', { class: 'health', 'data-health': 'ok' }, `${plural(moved, 'handle')} moved to another X account in 24 hours, so ${moved === 1 ? 'it' : 'they'} left the list.`),
     ),

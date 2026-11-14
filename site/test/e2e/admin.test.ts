@@ -144,7 +144,7 @@ test('home: job health, the list, the queues, the last 24 hours, installs, newes
     const health = await page.$$eval('#view .health', (els) => els.map((e) => [e.getAttribute('data-health'), e.textContent?.replace(/\s+/g, ' ').trim()]));
     assert.deepEqual(health.slice(0, 3), [
       ['ok', 'The score job ran 3 minutes ago and succeeded. 120 runs in 24 hours, 1 failed.'],
-      ['ok', 'The X facts job ran 1 minute ago and succeeded. 160 runs in 24 hours, 2 failed.'],
+      ['ok', 'The X facts job ran 1 minute ago and succeeded. 160 runs with work in 24 hours, 2 failed.'],
       ['ok', 'The list is at version 118 with 873 accounts, published 2 hours ago.'],
     ]);
     assert.deepEqual(await page.$$eval('#view .queue-count', (els) => els.map((e) => e.textContent)), ['7', '1', '1', '1']);

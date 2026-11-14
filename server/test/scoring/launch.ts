@@ -31,7 +31,7 @@ export function launch(days = 14, o: { users?: number; pool?: number; perDay?: n
   const voted = new Set<string>();
   const state = new Map<string, AccountInput>();
   const stateOf = (h: string): AccountInput => state.get(h) ?? {
-    handle: h, seed: false, clearedAt: null, override: null, overrideAt: null, listedAt: null, status: 'none', identity: 'ok', evidence: 0, protected: false,
+    handle: h, seed: false, clearedAt: null, override: null, overrideAt: null, listedAt: null, firstPublicAt: null, status: 'none', identity: 'ok', evidence: 0, protected: false,
   };
   const out: LaunchDay[] = [];
   for (let day = 1; day <= days; day++) {
@@ -52,9 +52,10 @@ export function launch(days = 14, o: { users?: number; pool?: number; perDay?: n
       const prev = stateOf(a.handle);
       if (a.parts.reason === 'votes_confirmed' && prev.status !== 'confirmed') autoNew++;
       const listed = a.tier >= 1;
+      const listedAt = listed ? prev.listedAt ?? now : null;
       state.set(a.handle, {
-        ...prev, status: a.status, evidence: Math.min(a.parts.networks, 3),
-        listedAt: listed ? prev.listedAt ?? now : null,
+        ...prev, status: a.status, evidence: Math.min(a.parts.networks, 3), listedAt,
+        firstPublicAt: prev.firstPublicAt ?? (listed ? listedAt : null),
       });
     }
     for (const i of result.installs) {
@@ -78,7 +79,9 @@ export function launch(days = 14, o: { users?: number; pool?: number; perDay?: n
       const at = new Date(now.getTime() + HOUR);
       for (const a of result.accounts) {
         if (a.status === 'pending' && a.parts.want === 'confirmed') {
-          state.set(a.handle, { ...stateOf(a.handle), override: 'confirm', overrideAt: at, listedAt: at, status: 'confirmed' });
+          const cur = stateOf(a.handle);
+          const listedAt = cur.listedAt ?? at;
+          state.set(a.handle, { ...cur, override: 'confirm', overrideAt: at, listedAt, firstPublicAt: cur.firstPublicAt ?? listedAt, status: 'confirmed' });
         }
       }
     }

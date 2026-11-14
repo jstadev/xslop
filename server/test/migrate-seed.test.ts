@@ -14,7 +14,7 @@ import type { Db } from '../src/db.js';
 import { BACKENDS, openTestDb, pgliteDb, type TestDb } from './helpers/db.js';
 import { makeApp, register, signed, vote } from './helpers/app.js';
 
-const ALL = ['001_init.sql', '002_hardening.sql', '003_profiles.sql', '004_judging_v2.sql', '005_x_user_id_index.sql', '006_history.sql'];
+const ALL = ['001_init.sql', '002_hardening.sql', '003_profiles.sql', '004_judging_v2.sql', '005_x_user_id_index.sql', '006_history.sql', '007_first_public.sql'];
 
 /** A PGlite database migrated up to and with `last`. */
 async function migratedTo(last: string): Promise<Db> {
@@ -164,7 +164,7 @@ describe.each(BACKENDS)('migrations and seed import (%s)', (backend) => {
       const body = Buffer.from(JSON.stringify({ v: 1, version: 1, generatedAt: '2026-11-08T00:00:00.000Z', accounts: [['admin_listed', 100, 2], ['crowd_listed', 70, 2], ['old_seed', 90, 2]] }));
       await db.query("insert into list_snapshots (count, body_gzip, body_br, etag, delta) values (3, $1, $2, '\"1\"', null)", [gzipSync(body), brotliCompressSync(body)]);
 
-      expect(await migrate(db)).toEqual(['004_judging_v2.sql', '005_x_user_id_index.sql', '006_history.sql']);
+      expect(await migrate(db)).toEqual(['004_judging_v2.sql', '005_x_user_id_index.sql', '006_history.sql', '007_first_public.sql']);
 
       expect((await db.query('select trusted, standing, good_marks from installs where id = $1', [i1])).rows[0]).toEqual({ trusted: false, standing: false, good_marks: 0 });
       const accounts = Object.fromEntries((await db.query<Record<string, unknown> & { handle: string }>(

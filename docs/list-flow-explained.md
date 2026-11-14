@@ -25,7 +25,7 @@ An install has **standing** when it is not banned and one of these is true:
 - an admin marked it as trusted, or
 - it is at least 7 days old, it has at least 3 good marks, and its reputation is at least 0.6.
 
-A **good mark** is a slop vote that you cast before the account was public, on an account that an admin then confirmed. One admin confirm gives at most 5 good marks: to the first 5 networks by the time of their slop vote, and in each network to the install with the earliest such vote. A confirm by votes gives no good mark, so standing always starts at a person.
+A **good mark** is a slop vote that you cast before the account was public, on an account that an admin then confirmed. One admin confirm gives at most 5 good marks: to the first 5 networks by the time of their slop vote, and in each network to the install with the earliest such vote. A confirm by votes gives no good mark, so standing always starts at a person. The first time an account is on the list is kept. A vote you cast while it was on the list earns nothing if the account leaves and an admin confirms it again.
 
 Standing can go away. A wrong vote is a **penalty**, and it ends the standing of its install at the next run of the score job:
 - your slop mark on an account that an admin clears with penalty;
@@ -84,7 +84,7 @@ The first rule that matches wins.
 - **"Not slop" with standing** lowers the cautious share. One such voice can send the account to the review queue. Enough of them take it off at the next run of the score job.
 - **Starter accounts**: votes never remove one. Only an accepted appeal or an admin clear does. If at least 5 "not slop" networks with standing and trust of 1 or more pass a cautious share of 60%, the account shows as disputed to the admin.
 - **Appeal**: the owner fills the form on https://x-slop.com/check and puts a code in the X bio. An admin reads it. If the admin accepts, the account leaves the list at once.
-- **Admin clear**: the same result, without an appeal. A clear with penalty keeps a copy of the votes on the account, and each slop mark is a penalty for its install. Each slop network without standing also gets a strike. The slop networks with standing get a strike only when at most 10 of them marked the account: more than 10 means that the admin overruled a real crowd. A clear of a starter account has no penalty. A strike has standing when a slop voter of that network had standing at the clear. A network with 2 strikes with standing in 30 days is silent on every account until 30 days after its newest strike. 2 strikes of any kind silence only the installs without standing of that network, so installs on a shared address cannot silence the install with standing there. A vote that is later deleted or changed keeps its strike.
+- **Admin clear**: the same result, without an appeal. A clear with penalty keeps a copy of the votes on the account, and each slop mark is a penalty for its install. Each slop network without standing also gets a strike. When a voter with standing marked the account as slop, only the votes of installs with standing decide the strike, so a not-slop vote without standing does not cancel it. The slop networks with standing get a strike only when at most 10 of them marked the account: more than 10 means that the admin overruled a real crowd. A clear of a starter account has no penalty. A strike has standing when a slop voter of that network had standing at the clear. A network with 2 strikes with standing in 30 days is silent on every account until 30 days after its newest strike. 2 strikes of any kind silence only the installs without standing of that network, so installs on a shared address cannot silence the install with standing there. A vote that is later deleted or changed keeps its strike.
 - **The handle gets a new owner**: `moved`, off the list at the next run. An account that the server cannot find (`gone`) stays on the list.
 
 ## 7. What one person alone can and cannot do
@@ -93,9 +93,9 @@ The first rule that matches wins.
 - Cannot: put an account on the list with new installs, also on many networks. At most, the account waits for a person.
 - Cannot: keep an account off the list with new installs. "Not slop" without standing counts nowhere.
 - Cannot: flood the list. Each network counts 50 votes a day.
-- With standing: at most 5 of your marks in any 24 hours carry standing, by the time of each mark. Marks that you set before your install had standing count by their own times: an install that marked 10 accounts a day for 7 days flags 35 of them in its first run with standing (measured in `server/src/scoring/README.md` section 9). The flag cap of 60 a day still holds. Each listing that an admin then clears with penalty ends that standing.
+- With standing: at most 5 of your marks in any 24 hours carry standing, by the time of each mark. Marks that you set before your install had standing count by their own times: an install that marked 10 accounts a day for 7 days flags 35 of them in its first run with standing (measured in `server/src/scoring/README.md` section 9). The flag cap of 60 a day still holds. Deleting a mark or changing its value does not free that place. Each listing that an admin then clears with penalty ends that standing.
 - Cannot: earn standing without a person. Only an admin confirm gives good marks, at most 5 for each confirm.
-- Cannot: earn standing from the public list. A vote on an account that is already listed earns nothing.
+- Cannot: earn standing from the public list. A vote on an account that is already listed earns nothing, also when that account leaves the list and an admin confirms it again.
 - Cannot: list an account with 50,000 followers or more. Only an admin can.
 
 ## 8. Diagram

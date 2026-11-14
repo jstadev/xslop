@@ -54,14 +54,15 @@ async function loadInput(q: Queryable, now: Date): Promise<{ input: ScoringInput
   // have standing (trusted, or stored standing) are all loaded: they have their own stored-vote limit. A banned install counts
   // for nothing and uses no budget, so its votes stay in the table.
   const votes = await q.query<ScoringInput['votes'][number]>(
-    `select install, handle, value, at from (
-       select v.install_id as install, v.handle, v.value, v.updated_at as at, i.trusted or i.standing as standing,
+    `select install, handle, value, at, "standingAt" from (
+       select v.install_id as install, v.handle, v.value, v.updated_at as at, v.standing_at as "standingAt",
+              i.trusted or i.standing as standing,
               row_number() over (partition by i.ip_hash, i.trusted or i.standing, v.value
                                  order by date_trunc('milliseconds', v.updated_at), v.handle collate "C", v.install_id) as place,
               min(v.updated_at) over (partition by i.ip_hash) as first_at
        from votes v join installs i on i.id = v.install_id
        where i.banned_at is null) t
-     where standing or place <= $2::int * (floor(extract(epoch from $1::timestamptz - first_at) / 86400) + 1)`,
+     where standing or "standingAt" > $1::timestamptz - interval '2 days' or place <= $2::int * (floor(extract(epoch from $1::timestamptz - first_at) / 86400) + 1)`,
     [now, NETWORK_DAILY_VOTES],
   );
   const stored = await q.query<{ n: number }>('select count(*)::int as n from votes');
@@ -76,10 +77,19 @@ async function loadInput(q: Queryable, now: Date): Promise<{ input: ScoringInput
      where id = any($1::uuid[]) or (banned_at is null and id in (select install_id from cleared_votes))`,
     [[...new Set(votes.rows.map((v) => v.install))]],
   );
+  const installIds = [...new Set(votes.rows.map((v) => v.install))];
+  const standingSpent = installIds.length === 0
+    ? { rows: [] as NonNullable<ScoringInput['standingSpent']> }
+    : await q.query<NonNullable<ScoringInput['standingSpent']>[number]>(
+      `select s.ip_hash as "ipHash", s.at from standing_spent s
+       where s.ip_hash in (select i.ip_hash from installs i where i.id = any($1::uuid[]))`,
+      [installIds],
+    );
   const voted = [...new Set(votes.rows.map((v) => v.handle))];
   const accounts = await q.query<LoadedAccount>(
     `select a.handle, a.seed, a.cleared_at as "clearedAt", a.override, a.override_at as "overrideAt",
-            a.listed_at as "listedAt", a.status, a.identity, 0 as evidence, a.protected or coalesce(p.followers >= $2, false) as protected
+            a.listed_at as "listedAt", a.first_public_at as "firstPublicAt", a.status, a.identity, 0 as evidence,
+            a.protected or coalesce(p.followers >= $2, false) as protected
      from accounts a left join profiles p on p.handle = a.handle where ${scored('$1')}`,
     [voted, PROTECTED_MIN_FOLLOWERS],
   );
@@ -112,6 +122,7 @@ async function loadInput(q: Queryable, now: Date): Promise<{ input: ScoringInput
       clearedVotes: clearedVotes.rows,
       autoConfirmsToday: brake.rows[0]!.confirms,
       autoFlagsToday: brake.rows[0]!.flags,
+      standingSpent: standingSpent.rows,
     },
     votesHeld: stored.rows[0]!.n - votes.rows.length,
   };
@@ -120,6 +131,7 @@ async function loadInput(q: Queryable, now: Date): Promise<{ input: ScoringInput
 /**
  * evidence (SPEC 13.6) = networks with a loaded slop vote that names a post which the X facts job found written by the account:
  * an `ok` row for that handle whose author id is still the account's X id. A held or banned vote gives no evidence.
+ * Each such vote is marked postOk. The engine then counts only the votes that count, and keeps this number when no vote is marked.
  */
 async function countEvidence(q: Queryable, votes: readonly ScoringInput['votes'][number][], accounts: LoadedAccount[]): Promise<void> {
   const { rows } = await q.query<{ handle: string; install: string; network: string }>(
@@ -141,6 +153,7 @@ async function countEvidence(q: Queryable, votes: readonly ScoringInput['votes']
   for (const v of votes) {
     const network = named.get(v.handle)?.get(v.install);
     if (network === undefined) continue;
+    v.postOk = true;
     let s = networks.get(v.handle);
     if (!s) networks.set(v.handle, (s = new Set()));
     s.add(network);
@@ -271,6 +284,48 @@ async function writeInstalls(q: Queryable, installs: ScoringOutput['installs']):
   );
 }
 
+/** Records the time a vote first carried standing. A later value change does not move it (the vote route never writes this column). */
+async function writeStanding(q: Queryable, votes: readonly { install: string; handle: string }[]): Promise<void> {
+  if (votes.length === 0) return;
+  await q.query(
+    `update votes v set standing_at = v.updated_at
+     from unnest($1::uuid[], $2::text[]) as u(id, h)
+     where v.install_id = u.id and v.handle = u.h and v.standing_at is null`,
+    [votes.map((v) => v.install), votes.map((v) => v.handle)],
+  );
+}
+
+/** Copies the earliest known public time into first_public_at. Never clears it. */
+async function rememberPublic(q: Queryable): Promise<void> {
+  // least() ignores nulls, so a later listing does not hide an earlier confirm or status event.
+  await q.query(
+    `update accounts a set first_public_at = least(
+       a.listed_at,
+       (select min(l.at) from admin_log l where l.action = 'confirm' and l.target = a.handle),
+       (select min(e.at) from events e where e.kind = 'status' and e.subject = a.handle
+          and e.data#>>'{to,status}' in ('flagged', 'confirmed')))
+     where a.first_public_at is null
+       and (a.listed_at is not null
+         or exists (select 1 from admin_log l where l.action = 'confirm' and l.target = a.handle)
+         or exists (select 1 from events e where e.kind = 'status' and e.subject = a.handle
+           and e.data#>>'{to,status}' in ('flagged', 'confirmed')))`,
+  );
+}
+
+/** Text of the admin decisions the engine reads. A change between the load and the write recomputes. Microseconds stay in the text. */
+async function decisionStamp(q: Queryable): Promise<string> {
+  const { rows } = await q.query<{ s: string }>(
+    `select (select count(*)::text || '|' || coalesce(max(cleared_at)::text, '') from cleared_votes)
+            || '|' ||
+            (select count(*) filter (where override = 'confirm')::text || '|' ||
+                    count(*) filter (where override = 'clear')::text || '|' ||
+                    coalesce(max(override_at)::text, '') || '|' ||
+                    coalesce(max(cleared_at)::text, '')
+             from accounts) as s`,
+  );
+  return rows[0]!.s;
+}
+
 /** SPEC 4 and 13.7. Each rule keeps what a later run, an admin or an appeal can still use. */
 async function retention(q: Queryable, now: Date): Promise<void> {
   const ago = (days: number): Date => new Date(now.getTime() - days * DAY_MS);
@@ -282,6 +337,17 @@ async function retention(q: Queryable, now: Date): Promise<void> {
     `delete from votes v using accounts a where a.handle = v.handle and v.updated_at < $1
        and a.status = 'none' and not a.seed and a.override is null and a.cleared_at is null`,
     [ago(RETENTION.votes)],
+  );
+  // A deleted vote keeps its standing slot (the trigger). Drop a slot only when no vote of that
+  // network can still fall inside the 24 hours after it. A slot younger than 2 days always stays.
+  await q.query(
+    `delete from standing_spent s
+     where s.at < $1::timestamptz - interval '2 days'
+       and not exists (
+         select 1 from votes v join installs i on i.id = v.install_id
+         where i.ip_hash = s.ip_hash and v.standing_at is null
+           and v.updated_at >= s.at and v.updated_at < s.at + interval '24 hours')`,
+    [now],
   );
   await q.query(
     "delete from evidence e using accounts a where a.handle = e.handle and a.status not in ('pending', 'flagged', 'confirmed') and e.checked_at < $1",
@@ -320,18 +386,42 @@ export async function runScoreJob(db: Db, compute: ComputeScores, clock: () => D
     if (!lock.rows[0]?.ok) return { skipped: true, accounts: 0, listed: 0, version: null, listChanged: false, ms: Date.now() - started, loadMs: 0, computeMs: 0, writeMs: 0 };
     try {
       const now = clock();
-      const { input, votesHeld } = await loadInput(s, now);
+      await rememberPublic(s);
+      const first = await loadInput(s, now);
+      let votesHeld = first.votesHeld;
+      const input = first.input;
+      const stampBefore = await decisionStamp(s);
       const loadMs = Date.now() - started;
       const out = compute(input);
       checkOutput(out);
       const computeMs = Date.now() - started - loadMs;
       if (loadMs + computeMs > budgetMs) throw new Error(`scoring took ${loadMs + computeMs} ms, past its ${budgetMs} ms budget; nothing was written`);
+      // The override check compares this snapshot, not a reload. An admin change during the run stays.
       const loaded = new Map(input.accounts.map((a) => [a.handle, a]));
       // Only loaded rows are written: the engine never creates an account row.
-      const accounts = out.accounts.filter((a) => loaded.has(a.handle));
+      let accounts = out.accounts.filter((a) => loaded.has(a.handle));
+      let installsOut = out.installs;
+      let struckOut = out.struckNetworks;
+      let model = out.model;
+      let standingVotes = out.standingVotes ?? [];
       const { result, detail } = await s.tx(async (q) => {
+        if (await decisionStamp(q) !== stampBefore) {
+          await rememberPublic(q);
+          const again = await loadInput(q, now);
+          votesHeld = again.votesHeld;
+          const recomputed = compute(again.input);
+          checkOutput(recomputed);
+          if (Date.now() - started > budgetMs) throw new Error(`scoring took ${Date.now() - started} ms, past its ${budgetMs} ms budget; nothing was written`);
+          accounts = recomputed.accounts.filter((a) => loaded.has(a.handle));
+          installsOut = recomputed.installs;
+          struckOut = recomputed.struckNetworks;
+          model = recomputed.model;
+          standingVotes = recomputed.standingVotes ?? [];
+        }
         const accountsChanged = await writeAccounts(q, accounts, loaded, now);
-        await writeInstalls(q, out.installs);
+        await rememberPublic(q);
+        await writeInstalls(q, installsOut);
+        await writeStanding(q, standingVotes);
         const snap = await publishList(q, now);
         const counts = await q.query<{ pending: number; standing: number }>(
           "select (select count(*) from accounts where status = 'pending')::int as pending, (select count(*) from installs where standing)::int as standing",
@@ -341,12 +431,12 @@ export async function runScoreJob(db: Db, compute: ComputeScores, clock: () => D
         const detail = {
           ...r,
           accountsChanged,
-          installs: out.installs.length,
+          installs: installsOut.length,
           votesHeld,
-          struckNetworks: out.struckNetworks,
+          struckNetworks: struckOut,
           pending: counts.rows[0]!.pending,
           standingInstalls: counts.rows[0]!.standing,
-          model: out.model,
+          model,
         };
         await q.query(
           `insert into jobs (name, last_run_at, last_ok_at, detail) values ('score', $1, $1, $2::jsonb)

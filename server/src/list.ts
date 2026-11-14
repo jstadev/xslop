@@ -26,7 +26,7 @@ interface Snapshot {
 }
 
 const LIST_CHECK_MS = 15_000;
-/** pg_advisory_xact_lock key: one list publish at a time, so versions follow the commit order and each delta starts at the version before it. */
+/** pg_advisory_xact_lock key. The second key is the schema, so staging and prod, which share one database, do not block each other. One publish at a time in a schema: versions follow the commit order and each delta starts at the version before it. The lock ends when the transaction ends. */
 const LIST_LOCK = 0x7a510004;
 
 const entryOf = (r: ListRow): ListEntry => [r[0], r[1], r[2]];
@@ -64,7 +64,7 @@ export async function loadLatestEntries(q: Queryable): Promise<{ version: number
  * another X id now (SPEC 13.10 item 10: an account that the source does not find stays).
  */
 export async function publishList(q: Queryable, now: Date): Promise<{ version: number | null; changed: boolean; listed: number }> {
-  await q.query('select pg_advisory_xact_lock($1)', [LIST_LOCK]);
+  await q.query('select pg_advisory_xact_lock($1::int, hashtext(current_schema()))', [LIST_LOCK]);
   const { rows: listed } = await q.query<{ handle: string; score: number; tier: number; x_user_id: string | null }>(
     "select handle, score, tier, x_user_id from accounts where tier >= 1 and status in ('flagged', 'confirmed') and identity <> 'moved'",
   );

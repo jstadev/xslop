@@ -20,7 +20,9 @@ export function pgliteDb(p: PGlite): Db {
 type Backend = 'pglite' | 'postgres';
 export const BACKENDS: Backend[] = process.env.TEST_DATABASE_URL ? ['pglite', 'postgres'] : ['pglite'];
 
-const TABLES = ['events', 'job_runs', 'jobs', 'used_challenges', 'admin_log', 'admin_sessions', 'appeals', 'list_snapshots', 'sightings', 'votes', 'cleared_votes', 'evidence', 'profiles', 'accounts', 'installs'];
+const TABLES = ['events', 'job_runs', 'jobs', 'used_challenges', 'admin_log', 'admin_sessions', 'appeals', 'list_snapshots', 'sightings', 'votes', 'cleared_votes', 'evidence', 'profiles', 'accounts', 'installs', 'standing_spent'];
+/** Trigger functions of the migrations. A table drop does not remove them, so the next migrate would fail. */
+const FUNCTIONS = ['xslop_move_first_public', 'xslop_keep_standing_spent'];
 const TEST_LOCK = 0x7a51ffff;
 
 export interface TestDb {
@@ -52,7 +54,10 @@ export async function openTestDb(kind: Backend): Promise<TestDb> {
   // The role ends a statement after 30 s. The files of one run wait here for each other for longer than that.
   await lock.query('set statement_timeout = 0');
   await lock.query('select pg_advisory_lock($1)', [TEST_LOCK]);
-  const drop = () => lock.query(`drop table if exists ${[...TABLES, 'schema_migrations'].map((t) => `${schema}.${t}`).join(', ')} cascade`);
+  const drop = async () => {
+    await lock.query(`drop table if exists ${[...TABLES, 'schema_migrations'].map((t) => `${schema}.${t}`).join(', ')} cascade`);
+    await lock.query(`drop function if exists ${FUNCTIONS.map((f) => `${schema}.${f}()`).join(', ')} cascade`);
+  };
   await drop();
   const db = createPgDb(url, 4);
   await migrate(db);

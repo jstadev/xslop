@@ -1,7 +1,7 @@
 // Strikes come from the rows of cleared_votes (SPEC.md 13.5), never from the live votes (13.9 item 10).
 import { describe, expect, test } from 'vitest';
 import { EVIDENCE_CONFIRM, STRIKE_LIMIT, STRIKE_MAX_CROWD, STRIKE_WINDOW_DAYS, computeScores, type AccountInput, type ClearedVoteInput, type InstallInput, type VoteInput } from '../../src/scoring/index.js';
-import { DAY, account, ago, allOf, anchor, anchors, cleared, input, many, scoreOf, vote } from './helpers.js';
+import { DAY, account, ago, allOf, anchor, anchors, cleared, input, install, many, scoreOf, vote } from './helpers.js';
 
 // A ring network with standing marked two accounts that an admin then cleared with the penalty.
 const ring = anchor('ring');
@@ -90,5 +90,13 @@ describe('13.9.10 strikes', () => {
     const twin = anchor('twin2', { ipHash: ring.ipHash });
     const rows = [...clears(), cleared(twin, 'gone1', 0, ago(5 * DAY))];
     expect(run(rows, { installs: [ring, twin, ...honest] }).out.struckNetworks).toBe(0);
+  });
+
+  test('a not-slop row without standing does not cancel a slop row with standing', () => {
+    const sock = install('sock', { ipHash: ring.ipHash, standing: false, reputation: 0.5 });
+    const rows = [...clears(), cleared(sock, 'gone1', 0, ago(5 * DAY)), cleared(sock, 'gone2', 0, ago(10 * DAY))];
+    const { out, target } = run(rows, { installs: [ring, sock, ...honest] });
+    expect(out.struckNetworks).toBe(1);
+    expect(target.parts).toMatchObject({ networks: 3, anchors: 3 });
   });
 });

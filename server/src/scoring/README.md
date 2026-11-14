@@ -28,10 +28,13 @@ every number from the constants below.
 ## 1. Input
 
 - Installs carry `trusted` (only an admin sets it) and `standing` (stored by the previous run).
-  Accounts carry `overrideAt`, `listedAt`, the stored `status`, `identity` (`unknown`, `ok`,
+  Accounts carry `overrideAt`, `listedAt`, `firstPublicAt` (the first listing, kept after the account
+  leaves the list), the stored `status`, `identity` (`unknown`, `ok`,
   `gone`, `moved`), `evidence` (networks whose counted slop vote names a post that the X facts job
-  found written by the account) and `protected` (`accounts.protected` or followers ≥
-  `PROTECTED_MIN_FOLLOWERS`). `clearedVotes` are the rows that an admin clear with the penalty
+  found written by the account; a vote marked `postOk` replaces this number with the counted ones) and `protected` (`accounts.protected` or followers ≥
+  `PROTECTED_MIN_FOLLOWERS`). A vote may carry `standingAt`, the time it first carried standing.
+  `standingSpent` is that time for a deleted vote. The engine counts both, so a delete or a value change
+  does not free the place. `clearedVotes` are the rows that an admin clear with the penalty
   stored, each with the `standing` of its install at the clear, and the "not slop" rows that an
   admin confirm stored (round 2 H1). `autoConfirmsToday` and `autoFlagsToday` count the automatic
   confirms and flags of the last 24 hours. The engine does not read `clearPenalty`: rows exist only
@@ -71,7 +74,8 @@ good marks ≥ 3 and the new reputation ≥ 0.6).
 ## 3. Networks (`network.ts`)
 
 **Strikes.** From the rows of `cleared_votes` only, so a vote that is deleted or flipped after the
-clear keeps its strike. Per cleared account, the rows of each network count by majority; a slop
+clear keeps its strike. Per cleared account, the rows of each network count by majority. When any
+row had standing, only those rows make the majority, the same rule as the voice. A slop
 majority is one strike at the time of the clear. The strike has standing when a slop row of the
 network had standing at the clear. When more than `STRIKE_MAX_CROWD` slop networks with standing
 marked the account, those networks get no strike (the admin overruled a real crowd); a network
@@ -92,7 +96,7 @@ standing carries standing when fewer than `STANDING_DAILY` = 5 votes of its netw
 slop" together, carried standing in the 24 hours before it. A vote past that never carries standing,
 also not in a later run: a slop vote stays a plain network, a "not slop" vote stays `dissent`. So any
 24 hours hold at most 5 votes with standing per network, and there is no waiting list. All installs
-with standing on one network share it. A vote after `now` carries none. Measured: an install with
+with standing on one network share it. A vote after `now` carries none. The score job stores that time on the vote (`standing_at`). A value change does not move it. A delete copies it to `standing_spent` and removes the vote. The engine counts both, so neither one frees the place. Measured: an install with
 standing that marks 20 accounts a day for 7 days anchors the first 5 marks of each day (35), and its
 new mark the next day carries standing (flagged). With the waiting rule of round 2 the same mark
 still had no standing 14 days later (round 2 H6).
@@ -208,9 +212,11 @@ Beta(1,1) mean over scored votes, clamped to [0.05, 1]. Only an admin decision i
 counted (budget, weight, after a clear) and was set before the answer was public:
 
 - **Admin confirm** (`override = 'confirm'` with `overrideAt`): the first `GOOD_MARKS_PER_ACCOUNT`
-  (5) networks by the time of their slop vote set before the account was public
-  (`min(listedAt, overrideAt)`), in each network the install with the earliest such vote, get a
-  **good mark** (13.10 item 2). Other slop votes score nothing. A not-slop vote before `overrideAt`
+  (5) networks by the time of their counted slop vote set before the account was public
+  (the earliest of `listedAt`, `firstPublicAt` and `overrideAt`; `firstPublicAt` stays when the
+  account leaves the list), in each network the install with the earliest such vote, get a
+  **good mark** (13.10 item 2). A vote cast while the account was public earns nothing when it
+  comes back. Other slop votes score nothing. A not-slop vote before `overrideAt`
   disagrees, also from an install without standing and when the account was already public.
 - **Admin clear with the penalty**: the stored `clearedVotes` rows only. A slop row disagrees, a
   not-slop row agrees. Live votes on the account are not scored.
@@ -223,9 +229,11 @@ penalty). `goodMarks` counts only good marks of slop votes set after the newest 
 marks placed before a penalty and confirmed after it gave the standing straight back). `trusted`
 installs keep their standing.
 
-So standing in the whole system is at most 5 good marks for each admin confirm (the attack search
-asserts it on every run), a crowd with standing makes no good mark, and a wrong vote that an admin
-catches takes the standing away until 3 new marks pass 3 new admin confirms.
+`couldStand` uses those same counted marks. A penalty takes the stored standing away in the run
+that sees it, and votes that do not count do not give it back in that run. So standing in the
+whole system is at most 5 good marks for each admin confirm (the attack search asserts it on every
+run), a crowd with standing makes no good mark, and a wrong vote that an admin catches takes the
+standing away until 3 new marks pass 3 new admin confirms.
 
 ## 8. Behaviour (`behaviour.ts`): information only
 

@@ -2,7 +2,7 @@
 // The same input in any row order gives the same output.
 import { BEHAVIOUR_MIN_SIGHTINGS, accountFeatures, behaviourScore } from './behaviour.js';
 import { FITTED_MIN_VOICES, VETO_FACTOR, factorize, slopSideFit, twoSidedNetworks, twoSidedSlopVoices } from './factorize.js';
-import { prepareInput } from './input.js';
+import { prepareInput, type PreparedAccount, type PreparedVote } from './input.js';
 import { neededNetworks } from './needed.js';
 import { carriesStanding, networkIndex, networkNames, struckNetworks, tallyNetworks, withinBudget } from './network.js';
 import { couldStand, newestPenalty, reputations } from './reputation.js';
@@ -31,27 +31,73 @@ export {
 // The published floats keep 3 decimals, so a tiny change does not rewrite a row. Decisions use raw values.
 const round3 = (x: number): number => Math.round(x * 1000) / 1000;
 
+// Evidence the gates read. A vote marked postOk names a post the server checked. For an account that has
+// such a slop vote, only the counted ones add a network. Other accounts keep the number the loader stored.
+function countedEvidence(votes: PreparedVote[], counted: Uint8Array, network: Int32Array, accounts: PreparedAccount[]): Int32Array {
+  const out = Int32Array.from(accounts, (a) => a.evidence);
+  const nets = new Map<number, Set<number>>();
+  const named = new Uint8Array(accounts.length);
+  votes.forEach((v, k) => {
+    if (!v.postOk || v.value !== 1) return;
+    named[v.a] = 1;
+    if (counted[k] !== 1) return;
+    let set = nets.get(v.a);
+    if (!set) nets.set(v.a, (set = new Set()));
+    set.add(network[v.u]!);
+  });
+  named.forEach((on, a) => { if (on) out[a] = nets.get(a)?.size ?? 0; });
+  return out;
+}
+
 export function computeScores(input: ScoringInput): ScoringOutput {
   const p = prepareInput(input);
   const nA = p.handles.length;
   const network = networkIndex(p.installs);
   const names = networkNames(p.installs, network);
+  // Slots that already carried standing: a deleted vote, and a live vote whose time was recorded.
+  // A live vote's recorded time is the slot. The vote does not take a second place at its new time.
+  const spentSlots: { n: number; atMs: number }[] = [];
+  const ipNet = new Map<string, number>();
+  p.installs.forEach((ins, u) => { if (!ipNet.has(ins.ipHash)) ipNet.set(ins.ipHash, network[u]!); });
+  for (const s of p.standingSpent) {
+    const n = ipNet.get(s.ipHash);
+    if (n !== undefined && s.atMs <= p.nowMs) spentSlots.push({ n, atMs: s.atMs });
+  }
+  for (const v of p.votes) {
+    if (!Number.isNaN(v.standingAtMs) && v.standingAtMs <= p.nowMs) spentSlots.push({ n: network[v.u]!, atMs: v.standingAtMs });
+  }
   const penalty = newestPenalty(p.installs, p.votes, p.accounts, p.clearedVotes);
-  const standing = standingNow(p.installs, p.nowMs, couldStand(p.votes, p.accounts, penalty));
-  const trust = raterTrust(p.installs, p.nowMs);
-
-  // 1. A struck network counts for nothing (a strike without standing silences its installs without
-  //    standing only). Then the votes that count: weight, the standing budget, the vote budget, and for a
-  //    cleared account only votes after the clear.
-  const struck = struckNetworks(p.clearedVotes, p.accounts, p.installs, network, p.nowMs, names.length);
-  network.forEach((n, u) => { if (struck[n] === 2 || (struck[n] === 1 && !standing[u])) trust[u] = 0; });
-  const weight = raterWeights(p.installs, trust);
-  const withStanding = carriesStanding(p.votes, network, weight, standing, p.nowMs);
-  const budget = withinBudget(p.votes, network, weight, withStanding, p.nowMs);
   const afterClear = (k: number): boolean => !(p.votes[k]!.atMs <= p.accounts[p.votes[k]!.a]!.clearedAtMs);
-  const counted = Uint8Array.from(p.votes, (_, k) => (budget[k] && afterClear(k) ? 1 : 0));
-  // "Not slop" without standing: in no tally and no budget, only in dissent and in the reputation of its install.
-  const inert = Uint8Array.from(p.votes, (v, k) => (v.value === 0 && !withStanding[k] && weight[v.u]! > 0 && afterClear(k) ? 1 : 0));
+  // Strikes do not depend on live standing. A level-1 strike silences only installs without standing.
+  const struck = struckNetworks(p.clearedVotes, p.accounts, p.installs, network, p.nowMs, names.length);
+  const countWith = (standing: Uint8Array, silence: Uint8Array) => {
+    const trust = raterTrust(p.installs, p.nowMs);
+    network.forEach((n, u) => { if (struck[n] === 2 || (struck[n] === 1 && !silence[u])) trust[u] = 0; });
+    const weight = raterWeights(p.installs, trust);
+    const withStanding = carriesStanding(p.votes, network, weight, standing, p.nowMs, spentSlots);
+    const budget = withinBudget(p.votes, network, weight, withStanding, p.nowMs);
+    const counted = Uint8Array.from(p.votes, (_, k) => (budget[k] && afterClear(k) ? 1 : 0));
+    // "Not slop" without standing: in no tally and no budget, only in dissent and in the reputation of its install.
+    const inert = Uint8Array.from(p.votes, (v, k) => (v.value === 0 && !withStanding[k] && weight[v.u]! > 0 && afterClear(k) ? 1 : 0));
+    return { trust, weight, withStanding, counted, inert };
+  };
+  // A penalty install has no standing in the probe, so only marks that count without that priority can
+  // give the standing back. Silencing still uses the standing from before the penalty, so a level-1
+  // strike does not hide those marks. No penalty: one pass, the same standing as before.
+  const prior = standingNow(p.installs, p.nowMs, Uint8Array.from(p.installs, () => 1));
+  const probeStanding = standingNow(p.installs, p.nowMs, Uint8Array.from(penalty, (t) => (t === -Infinity ? 1 : 0)));
+  const probe = countWith(probeStanding, prior);
+  let standing = probeStanding;
+  let live = probe;
+  let anyPenalty = false;
+  for (let u = 0; u < penalty.length; u++) if (penalty[u] !== -Infinity) { anyPenalty = true; break; }
+  if (anyPenalty) {
+    standing = standingNow(p.installs, p.nowMs, couldStand(p.votes, p.accounts, penalty, network, probe.counted));
+    let same = true;
+    for (let u = 0; u < standing.length; u++) if (standing[u] !== probeStanding[u]) { same = false; break; }
+    if (!same) live = countWith(standing, standing);
+  }
+  const { trust, weight, withStanding, counted, inert } = live;
   const raters = new Int32Array(nA);
   const slopRaters = new Int32Array(nA);
   p.votes.forEach((v, k) => { if (counted[k]) { raters[v.a]!++; slopRaters[v.a]! += v.value; } });
@@ -63,6 +109,7 @@ export function computeScores(input: ScoringInput): ScoringOutput {
   const side = fit ? slopSideFit(fit, tally.voices, twoSided) : null;
   const twoSidedSlop = twoSidedSlopVoices(tally.voices, twoSided, nA);
   const factor = Float64Array.from(p.handles, (_, a) => (side && twoSidedSlop[a]! >= FITTED_MIN_VOICES ? side.fa[a]! : 0));
+  const evidence = countedEvidence(p.votes, counted, network, p.accounts);
 
   const cases: Case[] = p.accounts.map((acc, a) => ({
     seed: acc.seed,
@@ -70,7 +117,7 @@ export function computeScores(input: ScoringInput): ScoringOutput {
     cleared: !Number.isNaN(acc.clearedAtMs),
     identity: acc.identity,
     protected: acc.protected,
-    evidence: acc.evidence,
+    evidence: evidence[a]!,
     wasConfirmed: acc.status === 'confirmed',
     wasListed: acc.status === 'confirmed' || acc.status === 'flagged',
     slopNetworks: tally.slopNetworks[a]!,
@@ -139,6 +186,12 @@ export function computeScores(input: ScoringInput): ScoringOutput {
     };
   });
 
+  const standingVotes: { install: string; handle: string }[] = [];
+  p.votes.forEach((v, k) => {
+    if (withStanding[k] === 1) standingVotes.push({ install: p.installs[v.u]!.id, handle: p.handles[v.a]! });
+  });
+  standingVotes.sort((x, y) => (x.install < y.install ? -1 : x.install > y.install ? 1 : x.handle < y.handle ? -1 : x.handle > y.handle ? 1 : 0));
+
   return {
     accounts,
     installs: p.installs.map((ins, u) => ({
@@ -146,5 +199,6 @@ export function computeScores(input: ScoringInput): ScoringOutput {
     })),
     struckNetworks: struck.reduce((sum, s) => sum + (s > 0 ? 1 : 0), 0),
     model: { epochs: fit ? fit.epochs : 0 },
+    standingVotes,
   };
 }

@@ -16,8 +16,32 @@ export const GOOD_MARKS_PER_ACCOUNT = 5;
 const confirmedAt = (acc: PreparedAccount): number =>
   (acc.override === 'confirm' && !acc.seed && acc.identity !== 'moved' ? acc.overrideAtMs : Number.NaN);
 
-// Public since the listing or the admin confirm, whichever came first.
-const publicSince = (acc: PreparedAccount): number => Math.min(Number.isNaN(acc.listedAtMs) ? Infinity : acc.listedAtMs, confirmedAt(acc));
+// Public since the first listing or the admin confirm, whichever came first. firstPublicAtMs is the
+// earliest listing and stays set after the account leaves the list, so a later confirm does not
+// make a vote from the earlier public period into a good mark. No admin confirm: NaN, nothing scores.
+const publicSince = (acc: PreparedAccount): number => {
+  const at = confirmedAt(acc);
+  if (Number.isNaN(at)) return Number.NaN;
+  let since = at;
+  if (!Number.isNaN(acc.listedAtMs)) since = Math.min(since, acc.listedAtMs);
+  if (!Number.isNaN(acc.firstPublicAtMs)) since = Math.min(since, acc.firstPublicAtMs);
+  return since;
+};
+
+// The slop votes that can earn a good mark on one account: the earliest counted slop vote of each
+// network set before the account was public, then the first GOOD_MARKS_PER_ACCOUNT networks.
+// Votes are sorted by (account, install), so an equal time keeps the earlier install.
+function goodMarkIndexes(votes: PreparedVote[], start: number, end: number, since: number, counted: Uint8Array, network: Int32Array): number[] {
+  const first = new Map<number, number>();
+  for (let k = start; k < end; k++) {
+    const v = votes[k]!;
+    if (v.value !== 1 || counted[k] !== 1 || !(v.atMs < since)) continue;
+    const n = network[v.u]!;
+    const best = first.get(n);
+    if (best === undefined || v.atMs < votes[best]!.atMs) first.set(n, k);
+  }
+  return [...first.values()].sort((x, y) => votes[x]!.atMs - votes[y]!.atMs || votes[x]!.u - votes[y]!.u).slice(0, GOOD_MARKS_PER_ACCOUNT);
+}
 
 // A row of an admin clear with the penalty answers for its vote: the rows exist only for such a clear. Rows
 // of a starter account, of an account that the admin confirms now, and of a vote set after the clear do not.
@@ -48,14 +72,24 @@ export function newestPenalty(
 }
 
 // Per install: 1 when its stored standing can still hold in this run. An install with a penalty needs at least
-// STANDING_MIN_GOOD_MARKS slop votes set after its newest penalty and before an admin confirm made the account
-// public (an upper bound of its good marks). So a new penalty takes the stored standing away in the first run
-// that sees it, not one run later.
-export function couldStand(votes: PreparedVote[], accounts: PreparedAccount[], penalty: Float64Array): Uint8Array {
+// STANDING_MIN_GOOD_MARKS counted good marks set after its newest penalty (the same votes reputations counts).
+// A vote past the budget, or outside the first networks, does not keep the standing for this run.
+export function couldStand(
+  votes: PreparedVote[], accounts: PreparedAccount[], penalty: Float64Array, network: Int32Array, counted: Uint8Array,
+): Uint8Array {
   const marks = new Int32Array(penalty.length);
-  for (const v of votes) {
-    const acc = accounts[v.a]!;
-    if (v.value === 1 && v.atMs > penalty[v.u]! && v.atMs < publicSince(acc)) marks[v.u]!++;
+  for (let start = 0; start < votes.length; ) {
+    const a = votes[start]!.a;
+    let end = start;
+    while (end < votes.length && votes[end]!.a === a) end++;
+    const since = publicSince(accounts[a]!);
+    if (!Number.isNaN(since)) {
+      for (const k of goodMarkIndexes(votes, start, end, since, counted, network)) {
+        const u = votes[k]!.u;
+        if (votes[k]!.atMs > penalty[u]!) marks[u]!++;
+      }
+    }
+    start = end;
   }
   return Uint8Array.from(marks, (m, u) => (penalty[u] === -Infinity || m >= STANDING_MIN_GOOD_MARKS ? 1 : 0));
 }
@@ -85,19 +119,14 @@ export function reputations(ctx: ReputationContext): { reputation: Float64Array;
     const acc = ctx.accounts[a]!;
     const at = confirmedAt(acc);
     if (!Number.isNaN(at)) {
-      // The earliest slop vote of each network set before the account was public, then the first networks.
       const since = publicSince(acc);
-      const first = new Map<number, number>();
       for (let k = start; k < end; k++) {
         const v = votes[k]!;
-        if (v.value === 1 && counted[k] && v.atMs < since) {
-          const best = first.get(network[v.u]!);
-          if (best === undefined || v.atMs < votes[best]!.atMs) first.set(network[v.u]!, k);
-        } else if (v.value === 0 && (counted[k] || ctx.inert[k]) && v.atMs < at) {
+        if (v.value === 0 && (counted[k] || ctx.inert[k]) && v.atMs < at) {
           total[v.u]!++; // "not slop" before the admin upheld the listing disagrees, also when the account was already public
         }
       }
-      const marks = [...first.values()].sort((x, y) => votes[x]!.atMs - votes[y]!.atMs || votes[x]!.u - votes[y]!.u).slice(0, GOOD_MARKS_PER_ACCOUNT);
+      const marks = goodMarkIndexes(votes, start, end, since, counted, network);
       for (const k of marks) {
         const u = votes[k]!.u;
         agree[u]!++;

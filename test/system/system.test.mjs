@@ -730,7 +730,7 @@ describe('xslop system: judging v2', { timeout: 40 * MINUTE_MS }, () => {
 
       assert.match(await script('server/dist/scripts/migrate.js'), /applied: 003_profiles\.sql, 004_judging_v2\.sql, 005_x_user_id_index\.sql, 006_history\.sql/);
       for (const table of everyTable.filter((t) => t !== 'schema_migrations')) assert.deepEqual(await fingerprint(table), baseline[table], `the migration leaves ${table} alone`);
-      assert.deepEqual((await upgrade.query('select name from schema_migrations order by name')).rows.map((r) => r.name), ['001_init.sql', '002_hardening.sql', '003_profiles.sql', '004_judging_v2.sql', '005_x_user_id_index.sql', '006_history.sql']);
+      assert.deepEqual((await upgrade.query('select name from schema_migrations order by name')).rows.map((r) => r.name), ['001_init.sql', '002_hardening.sql', '003_profiles.sql', '004_judging_v2.sql', '005_x_user_id_index.sql', '006_history.sql', '007_first_public.sql']);
       assert.equal((await first('select count(*)::int as n from profiles')).n, 0);
       assert.match(await script('server/dist/scripts/migrate.js'), /schema is up to date/, 'a second run changes nothing');
 

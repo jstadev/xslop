@@ -1341,6 +1341,15 @@ describe('landing page polish', () => {
         }
         const tag = await page.locator('.flood-tag').evaluate((el) => getComputedStyle(el).backgroundColor);
         assert.equal(tag, 'rgba(0, 0, 0, 0)', 'the tagline has no fill');
+        // Pin 355: the bridge captions are only text, with no box. The caption styles apply while the scene runs.
+        await page.evaluate(() => document.documentElement.classList.add('has-scene'));
+        const captions = await page.locator('[data-step-text]').evaluateAll((els) =>
+          els.map((el) => {
+            const css = getComputedStyle(el);
+            return [css.backgroundColor, css.borderTopWidth, css.backdropFilter, css.boxShadow, css.paddingTop].join(' | ');
+          }),
+        );
+        assert.deepEqual(captions, Array(4).fill('rgba(0, 0, 0, 0) | 0px | none | none | 0px'), 'the bridge captions have no box');
       } finally {
         await close();
       }

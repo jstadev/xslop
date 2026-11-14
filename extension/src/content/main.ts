@@ -21,9 +21,13 @@ interface Entry {
   bar: Bar | null;
   /** Last rendered state, so a refresh writes the DOM only on change. */
   view: string;
+  /** Time link read by `parseTweet`. Later flushes compare this node, not the whole article. */
+  timeLink: Element | null;
 }
 
 const MAX_TRIES = 30;
+/** Same id rule as `parse.ts`: digits after `/status/`, then end or a delimiter. */
+const STATUS_IN_HREF = /\/status\/([0-9]{1,20})(?:[/?#]|$)/;
 const TWEETS_MAX = 5000;
 const OBS_QUEUE_MAX = 1000;
 const entries = new WeakMap<Element, Entry>();
@@ -61,13 +65,54 @@ const ACT_S = crypto.randomUUID();
 let actN = 0;
 /** Firefox can stop its event page as a message arrives, so one resend after a short wait. The same stamp goes again. */
 const RESEND_MS = 300;
+/** Above zero while a lost vote waits to go out again. A later vote stays behind that resend. */
+let retrying = 0;
+let voteTail: Promise<void> = Promise.resolve();
+
+function once(stamped: ContentMsg): Promise<unknown> {
+  try {
+    return ext.runtime.sendMessage(stamped);
+  } catch {
+    return Promise.reject(new Error('send failed'));
+  }
+}
+
+function attempt(stamped: ContentMsg): Promise<unknown> {
+  return once(stamped).catch(async () => {
+    await new Promise((done) => setTimeout(done, RESEND_MS));
+    return alive() ? once(stamped).catch(() => null) : null;
+  });
+}
+
+/** The resend keeps the stamp. A vote that arrives during the wait cannot pass it. */
+function retryVote(stamped: ContentMsg): Promise<unknown> {
+  retrying += 1;
+  const job = new Promise<void>((done) => setTimeout(done, RESEND_MS)).then(() => {
+    const again = alive() ? once(stamped).catch(() => null) : Promise.resolve(null);
+    return Promise.resolve(again).finally(() => {
+      retrying -= 1;
+    });
+  });
+  voteTail = job.then(() => undefined, () => undefined);
+  return job;
+}
+
+function sendVote(stamped: ContentMsg): Promise<unknown> {
+  if (!alive()) return Promise.resolve(null);
+  return once(stamped).catch(() => retryVote(stamped));
+}
+
 function send(msg: ContentMsg): Promise<unknown> {
   if (!alive()) return Promise.resolve(null);
-  const stamped = msg.t === 'vote' || msg.t === 'unvote' ? { ...msg, n: ++actN, s: ACT_S } : msg;
-  return ext.runtime.sendMessage(stamped).catch(async () => {
-    await new Promise((done) => setTimeout(done, RESEND_MS));
-    return alive() ? ext.runtime.sendMessage(stamped).catch(() => null) : null;
-  });
+  // A hidden count or a mute record must not stand in front of the vote from this click.
+  if (msg.t !== 'vote' && msg.t !== 'unvote') return attempt(msg);
+  const stamped = { ...msg, n: ++actN, s: ACT_S };
+  const run = (): Promise<unknown> => sendVote(stamped);
+  // The rejection of a lost send is a later task. Until then, each click sends now.
+  if (retrying === 0) return run();
+  const job = voteTail.then(run, run);
+  voteTail = job.then(() => undefined, () => undefined);
+  return job;
 }
 
 /** A control that still runs after an update would mute on X with no record of it: it says so and stops here. */
@@ -198,13 +243,24 @@ function buttonLive(e: Entry): boolean {
   return !!el && !!e.p.actionBar && el.parentElement === e.p.actionBar && e.article.contains(el) && shown(el);
 }
 
-const needsButton = (e: Entry): boolean => actionable(e.p) && !e.button?.el.isConnected;
+/** True when `placeButton` would add, move, or remove the button. A stable button skips that scan. */
+function needsButton(e: Entry): boolean {
+  const el = e.button?.el;
+  if (!actionable(e.p)) return el !== undefined;
+  if (!el?.isConnected) return true;
+  const bar = e.p.actionBar;
+  return !bar?.isConnected || el.parentElement !== bar;
+}
 
 function placeButton(e: Entry): void {
   if (e.button && !e.button.el.isConnected) e.button = null;
+  if (!e.p.actionBar?.isConnected) e.p.actionBar = actionBarOf(e.article, sel());
+  // A cloned cell can still hold the button of the tweet it copied.
+  e.p.actionBar?.querySelectorAll(':scope > .xslop-host').forEach((el) => {
+    if (el !== e.button?.el) el.remove();
+  });
   const wanted = actionable(e.p);
   if (wanted && !e.button) {
-    if (!e.p.actionBar?.isConnected) e.p.actionBar = actionBarOf(e.article, sel());
     if (!e.p.actionBar) return;
     e.button = makeButton(() => {
       if (buttonLive(e)) toggle(e);
@@ -217,6 +273,18 @@ function placeButton(e: Entry): void {
   e.button?.set(e.p.handle, votes.get(e.p.handle) === 1, instantOn());
 }
 
+/** True when the bar or the collapse mark is still on the cell this entry paints. */
+function domMatches(e: Entry, view: string): boolean {
+  const cell = e.p.cell?.isConnected ? e.p.cell : null;
+  const attr = cell ? cell.getAttribute('data-xslop-cell') : e.article.getAttribute('data-xslop-article');
+  if (view === 'show') return e.bar === null && attr === null;
+  if (!view.startsWith('bar')) return e.bar === null && attr === 'removed';
+  const bar = e.bar?.el;
+  if (!bar?.isConnected) return false;
+  if (cell) return attr === 'collapsed' && bar.parentElement === cell;
+  return attr === 'collapsed' && bar.nextElementSibling === e.article;
+}
+
 function render(e: Entry): void {
   placeButton(e);
   // The focal post is never hidden: you opened it on purpose.
@@ -224,7 +292,7 @@ function render(e: Entry): void {
   if (!r) justMarked.delete(e.p.tweetId);
   const mode = !r || revealed.has(e.p.tweetId) ? 'show' : settings.display === 'remove' && !justMarked.has(e.p.tweetId) ? 'remove' : 'bar';
   const view = r && mode !== 'show' ? `${mode}:${r.kind}:${r.kind === 'global' ? r.score : ''}` : 'show';
-  if (view === e.view) return;
+  if (view === e.view && domMatches(e, view)) return;
   e.view = view;
   clearView(e);
   if (!r || mode === 'show') return;
@@ -287,7 +355,7 @@ function forget(e: Entry): void {
   clearView(e);
   e.button?.el.remove();
   entries.delete(e.article);
-  schedule();
+  requestScan();
 }
 
 function toggle(e: Entry): void {
@@ -361,11 +429,39 @@ function sendObservations(): void {
 // ---- the batch ----
 
 let scheduled = false;
+/** True when a flush must walk articles. An unrelated node does not set it. */
+let tweetDirty = false;
 
 function schedule(): void {
   if (scheduled) return;
   scheduled = true;
   requestAnimationFrame(flush);
+}
+
+function requestScan(): void {
+  tweetDirty = true;
+  schedule();
+}
+
+const linkId = (link: Element): string | null => STATUS_IN_HREF.exec(link.getAttribute('href') ?? '')?.[1] ?? null;
+
+/** Outer time link whose href is this tweet id. Skips a quote, the same way `parseTweet` does. */
+function timeLinkOf(article: Element, tweetId: string): Element | null {
+  const s = sel();
+  for (const t of article.querySelectorAll(s.time)) {
+    const q = t.closest(s.quote);
+    if (q && article.contains(q) && q !== article) continue;
+    const link = t.closest(s.statusLink);
+    if (link && article.contains(link) && linkId(link) === tweetId) return link;
+  }
+  return null;
+}
+
+/** True when the stored time link and the cell still name this post. A handle cannot change while the id stays. */
+function stillSame(article: Element, e: Entry): boolean {
+  const link = e.timeLink;
+  if (!link?.isConnected || !article.contains(link) || linkId(link) !== e.p.tweetId) return false;
+  return article.closest(sel().cell) === e.p.cell;
 }
 
 /** Starts tracking an article, or returns null when it is not a tweet that xslop can read. */
@@ -380,25 +476,45 @@ function track(a: HTMLElement): Entry | null {
   // A recycled cell may still carry the state of the tweet it showed before.
   p.cell?.querySelectorAll(':scope > .xslop-bar').forEach((b) => b.remove());
   p.cell?.removeAttribute('data-xslop-cell');
-  const e: Entry = { article: a, p, button: null, bar: null, view: 'show' };
+  const e: Entry = { article: a, p, button: null, bar: null, view: 'show', timeLink: timeLinkOf(a, p.tweetId) };
   entries.set(a, e);
   return e;
 }
 
 function flush(): void {
   scheduled = false;
+  const dirty = tweetDirty;
+  tweetDirty = false;
   const changed = syncPage();
+  // Nothing of xslop changed: do not parse or paint.
+  if (!dirty && !changed) return;
   const focalBefore = focal;
   const all: Entry[] = [];
   const fresh: Entry[] = [];
   for (const a of document.querySelectorAll<HTMLElement>(sel().article)) {
-    const known = entries.get(a);
+    let known = entries.get(a);
+    let asNew = false;
+    // A known article is parsed again only when its time link or its cell may have changed.
+    if (known && !stillSame(a, known)) {
+      const now = parseTweet(a, sel());
+      if (now && (now.tweetId !== known.p.tweetId || now.handle !== known.p.handle || now.cell !== known.p.cell)) {
+        known.p.cell?.removeAttribute('data-xslop-cell');
+        known.bar?.el.remove();
+        known.bar = null;
+        known.view = '';
+        asNew = now.tweetId !== known.p.tweetId;
+      }
+      if (now) {
+        known.p = now;
+        known.timeLink = timeLinkOf(a, now.tweetId);
+      }
+    }
     const e = known ?? track(a);
     if (!e) continue;
     all.push(e);
     if (isFocal(e.p)) focal = e.p;
-    if (!known) fresh.push(e);
-    if (!known || changed || needsButton(e)) render(e);
+    if (!known || asNew) fresh.push(e);
+    if (!known || asNew || changed || needsButton(e) || !domMatches(e, e.view)) render(e);
   }
   // Replies seen before the focal post, or before your handle, get their observation now.
   for (const e of changed || focal !== focalBefore ? all : fresh) observe(e);
@@ -429,7 +545,7 @@ async function onBg(m: BgMsg): Promise<unknown> {
     case 'listReload':
     case 'config':
       await loadState();
-      schedule();
+      requestScan();
       refresh();
       return { ok: true };
     case 'xcall':
@@ -452,6 +568,24 @@ ext.runtime.onMessage.addListener((raw, sender, sendResponse) => {
   return true;
 });
 
+/** True when this mutation can change a tweet, the collapsed bar, or your profile link. */
+function nodeMatters(n: Node, deep: boolean): boolean {
+  if (!(n instanceof Element)) return !!n.parentElement && nodeMatters(n.parentElement, false);
+  if (n.classList.contains('xslop-bar') || n.classList.contains('xslop-host')) return true;
+  const s = sel();
+  if (n.matches(s.article) || n.matches(s.cell) || n.matches(s.ownProfile)) return true;
+  if (n.closest(s.article) || n.closest(s.cell) || n.closest(s.ownProfile)) return true;
+  if (!deep) return false;
+  return !!n.querySelector(`${s.article}, ${s.cell}, .xslop-bar, .xslop-host`) || !!n.querySelector(s.ownProfile);
+}
+
+function recordMatters(r: MutationRecord): boolean {
+  if (nodeMatters(r.target, false)) return true;
+  for (const n of r.addedNodes) if (nodeMatters(n, true)) return true;
+  for (const n of r.removedNodes) if (nodeMatters(n, true)) return true;
+  return false;
+}
+
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden' && obsQueue.length) {
     if (obsTimer) clearTimeout(obsTimer);
@@ -469,14 +603,15 @@ async function start(): Promise<void> {
   const observer = new MutationObserver((records) => {
     if (!alive()) return observer.disconnect();
     for (const r of records) {
-      if (r.addedNodes.length) {
-        schedule();
+      // Removed nodes stay watched: X can drop the bar and add nothing (UI-2).
+      if ((r.addedNodes.length || r.removedNodes.length) && recordMatters(r)) {
+        requestScan();
         return;
       }
     }
   });
   observer.observe(document.documentElement, { childList: true, subtree: true });
-  schedule();
+  requestScan();
   void send({ t: 'hello' });
 }
 

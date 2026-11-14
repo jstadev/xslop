@@ -1012,7 +1012,8 @@ main {
   margin-top: var(--space-3);
 }
 
-/* All four captions stay in the accessibility tree, so a screen reader gets the whole explanation. */
+/* All four captions stay in the accessibility tree, so a screen reader gets the whole explanation.
+ * Pin 355: a caption is only text, with no box. */
 .has-scene .bridge-steps span {
   grid-area: 1 / 1;
   justify-self: center;
@@ -1021,13 +1022,6 @@ main {
   align-content: center;
   text-align: center;
   margin-top: 0;
-  padding: var(--space-3) var(--space-6);
-  border: var(--rule) solid var(--edge-soft);
-  border-radius: var(--radius-card);
-  background: var(--glass);
-  -webkit-backdrop-filter: var(--glass-blur);
-  backdrop-filter: var(--glass-blur);
-  box-shadow: var(--shadow-soft);
   color: var(--color-text);
   font-weight: var(--weight-medium);
   opacity: 0;
